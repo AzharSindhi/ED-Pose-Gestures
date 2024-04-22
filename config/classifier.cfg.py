@@ -18,7 +18,7 @@ multi_step_lr = False
 lr_drop_list = [33, 45]
 
 
-modelname = 'edpose'
+modelname = 'classifier'
 frozen_weights = None
 backbone = 'resnet50'
 use_checkpoint = False
@@ -102,7 +102,7 @@ dn_labelbook_size = 100
 match_unstable_error = False
 
 # for ema
-use_ema = True
+use_ema = True # ---> changed to false <---
 ema_decay = 0.9997
 ema_epoch = 0
 

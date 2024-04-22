@@ -3,7 +3,7 @@ import copy
 import os
 from typing import Optional, List, Union
 import warnings
-from util.misc import inverse_sigmoid
+# from util.misc import inverse_sigmoid
 import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
@@ -11,6 +11,11 @@ from .transformer_deformable import DeformableTransformerEncoderLayer, Deformabl
 from .utils import gen_encoder_output_proposals, sigmoid_focal_loss, MLP, _get_activation_fn, gen_sineembed_for_position
 from .ops.modules.ms_deform_attn import MSDeformAttn
 
+def inverse_sigmoid(x, eps=1e-3):
+    x = x.clamp(min=0, max=1)
+    x1 = x.clamp(min=eps)
+    x2 = (1 - x).clamp(min=eps)
+    return torch.log(x1/x2)
 
 class Transformer(nn.Module):
 
@@ -47,7 +52,8 @@ class Transformer(nn.Module):
                  embed_init_tgt=False,
                  num_body_points=17,
                  num_box_decoder_layers=2,
-                 num_group=100
+                 num_group=100,
+                 num_dn=100,
                  ):
         super().__init__()
         self.num_feature_levels = num_feature_levels
@@ -58,6 +64,7 @@ class Transformer(nn.Module):
         self.two_stage_keep_all_tokens = two_stage_keep_all_tokens
         self.num_queries = num_queries
         self.random_refpoints_xy = random_refpoints_xy
+        self.num_dn = num_dn
         assert query_dim == 4
 
         if num_feature_levels > 1:
@@ -106,7 +113,8 @@ class Transformer(nn.Module):
                                         dec_layer_number=dec_layer_number,
                                         num_body_points=num_body_points,
                                         num_box_decoder_layers=num_box_decoder_layers,
-                                        num_group=num_group
+                                        num_group=num_group,
+                                        num_dn=self.num_dn
                                         )
 
         self.d_model = d_model
@@ -299,6 +307,8 @@ class Transformer(nn.Module):
                 input_hw = self.two_stage_wh_embedding.weight[0]
             else:
                 input_hw = None
+
+            #### Coarse human query selection (900 queries)
             output_memory, output_proposals = gen_encoder_output_proposals(memory, mask_flatten, spatial_shapes, input_hw)
             output_memory = self.enc_output_norm(self.enc_output(output_memory))
             
@@ -310,11 +320,11 @@ class Transformer(nn.Module):
 
             # gather boxes
             refpoint_embed_undetach = torch.gather(enc_outputs_coord_unselected, 1, topk_proposals.unsqueeze(-1).repeat(1, 1, 4)) # unsigmoid
-            refpoint_embed_ = refpoint_embed_undetach.detach()
-            init_box_proposal = torch.gather(output_proposals, 1, topk_proposals.unsqueeze(-1).repeat(1, 1, 4)).sigmoid() # sigmoid
+            refpoint_embed_ = refpoint_embed_undetach.detach() ### New refined Queries proposals or Pos
+            init_box_proposal = torch.gather(output_proposals, 1, topk_proposals.unsqueeze(-1).repeat(1, 1, 4)).sigmoid() # sigmoid ## how are these used?
 
             # gather tgt
-            tgt_undetach = torch.gather(output_memory, 1, topk_proposals.unsqueeze(-1).repeat(1, 1, self.d_model))
+            tgt_undetach = torch.gather(output_memory, 1, topk_proposals.unsqueeze(-1).repeat(1, 1, self.d_model)) ## New refined Queries Q'
             if self.embed_init_tgt:
                 tgt_ = self.tgt_embed.weight[:, None, :].repeat(1, bs, 1).transpose(0, 1) # nq, bs, d_model
             else:
@@ -361,6 +371,16 @@ class Transformer(nn.Module):
         #########################################################
         # Begin Decoder
         #########################################################
+        memory_info = {
+            "memory": memory,
+            "memory_key_padding_mask": mask_flatten,
+            "pos": lvl_pos_embed_flatten,
+            "level_start_index": level_start_index,
+            "spatial_shapes": spatial_shapes,
+            "valid_ratios": valid_ratios,
+            # "tgt_mask": attn_mask,
+            # "tgt_mask2": attn_mask2
+        }
         hs, references = self.decoder(
                 tgt=tgt.transpose(0, 1), 
                 memory=memory.transpose(0, 1), 
@@ -409,7 +429,7 @@ class Transformer(nn.Module):
             hs_enc = ref_enc = None
 
 
-        return hs, references, hs_enc, ref_enc, init_box_proposal
+        return memory_info, hs, references, hs_enc, ref_enc, init_box_proposal
 
 
 
@@ -639,12 +659,20 @@ class TransformerDecoder(nn.Module):
         self.num_dn = num_dn
         self.hw = nn.Embedding(self.num_body_points,2)
         self.keypoint_embed = nn.Embedding(self.num_body_points, d_model)
-        self.kpt_index=[x for x in range(self.num_group*(self.num_body_points+1)) if x%(self.num_body_points+1)!=0]
+        self.gesture_embed = nn.Embedding(self.num_group, d_model)
+        # self.seperate_token_for_class = 0
+        # self.kpt_index = []
+        # start = 1 + self.seperate_token_for_class
+        # for i in range(self.num_group):
+        #     self.kpt_index.extend(range(start, start + self.num_body_points))
+        #     start = start + self.num_body_points + 1 + self.seperate_token_for_class # excluding box and class token
+            
+
     def forward(self, tgt, memory,
-                tgt_mask: Optional[Tensor] = None,
-                tgt_mask2: Optional[Tensor] = None,
-                memory_mask: Optional[Tensor] = None,
-                tgt_key_padding_mask: Optional[Tensor] = None,
+                tgt_mask: Optional[Tensor] = None, #
+                tgt_mask2: Optional[Tensor] = None, #
+                memory_mask: Optional[Tensor] = None, #
+                tgt_key_padding_mask: Optional[Tensor] = None, #
                 memory_key_padding_mask: Optional[Tensor] = None,
                 pos: Optional[Tensor] = None,
                 refpoints_unsigmoid: Optional[Tensor] = None, # num_queries, bs, 2
@@ -655,7 +683,6 @@ class TransformerDecoder(nn.Module):
                 
                 ):
         output = tgt
-
         intermediate = []
         reference_points = refpoints_unsigmoid.sigmoid()
         ref_points = [reference_points]  
@@ -720,14 +747,22 @@ class TransformerDecoder(nn.Module):
 
             # query expansion
             if layer_id == self.num_box_decoder_layers - 1:
+                ## fine query selection 
                 dn_output = output[:effect_num_dn]
                 dn_new_reference_points = new_reference_points[:effect_num_dn]
                 class_unselected = self.class_embed[layer_id](output)[effect_num_dn:]
                 topk_proposals = torch.topk(class_unselected.max(-1)[0], inter_select_number, dim=0)[1]
                 new_reference_points_for_box = torch.gather(new_reference_points[effect_num_dn:], 0, topk_proposals.unsqueeze(-1).repeat(1, 1, 4))
                 new_output_for_box = torch.gather(output[effect_num_dn:], 0, topk_proposals.unsqueeze(-1).repeat(1, 1, self.d_model))
+                ###
+                # new_reference_points_for_class = torch.gather(new_reference_points[effect_num_dn:], 0, topk_proposals.unsqueeze(-1).repeat(1, 1, 4))
+                if self.seperate_token_for_class:
+                    new_output_for_class = new_output_for_box + self.gesture_embed.weight[:, None, :] #torch.gather(output[effect_num_dn:], 0, topk_proposals.unsqueeze(-1).repeat(1, 1, self.d_model))
+                ###
+                # new output_for_class = torch.gather(output[effect_num_dn:], 0, topk_proposals.unsqueeze(-1).repeat(1, 1, self.d_model))
+                # query expansion for keypoints               
                 bs=new_output_for_box.shape[1]
-                new_output_for_keypoint = new_output_for_box[:, None, :, :] + self.keypoint_embed.weight[None,:, None, :]
+                new_output_for_keypoint = new_output_for_box[:, None, :, :] + self.keypoint_embed.weight[None,:, None, :] # appending keypoint queries with box queries (100, 17, 256 )
                 if self.num_body_points==17:
                     delta_xy = self.pose_embed[-1](new_output_for_keypoint)[..., :2]
                 else:
@@ -737,8 +772,14 @@ class TransformerDecoder(nn.Module):
                 keypoint_wh_weight = self.hw.weight.unsqueeze(0).unsqueeze(-2).repeat(num_queries,1,bs,1).sigmoid()
                 keypoint_wh = keypoint_wh_weight * new_reference_points_for_box[..., 2:][:, None]
                 new_reference_points_for_keypoint = torch.cat((keypoint_xy, keypoint_wh), dim=-1)
-                new_reference_points = torch.cat((new_reference_points_for_box.unsqueeze(1), new_reference_points_for_keypoint), dim=1).flatten(0,1)
-                output = torch.cat((new_output_for_box.unsqueeze(1), new_output_for_keypoint), dim=1).flatten(0, 1)
+                ## append new class queries for each box here
+                ###
+                if self.seperate_token_for_class:
+                    new_reference_points = torch.cat((new_reference_points_for_box.unsqueeze(1), new_reference_points_for_box.unsqueeze(1), new_reference_points_for_keypoint), dim=1).flatten(0,1) ## append new class token here
+                    output = torch.cat((new_output_for_box.unsqueeze(1),new_output_for_class.unsqueeze(1), new_output_for_keypoint), dim=1).flatten(0, 1) ## append new class token here
+                else:
+                    new_reference_points = torch.cat((new_reference_points_for_box.unsqueeze(1), new_reference_points_for_keypoint), dim=1).flatten(0,1)
+                    output = torch.cat((new_output_for_box.unsqueeze(1), new_output_for_keypoint), dim=1).flatten(0, 1)
                 new_reference_points = torch.cat((dn_new_reference_points, new_reference_points), dim=0)
                 output = torch.cat((dn_output, output), dim=0)
                 tgt_mask=tgt_mask2
@@ -747,17 +788,29 @@ class TransformerDecoder(nn.Module):
 
             # human-to-keypoints update
             if layer_id >= self.num_box_decoder_layers:
+                # start of denoised boxes and new boxes update
+                # box_indices, class_indices, kpt_indices = self.get_indices()
                 reference_before_sigmoid = inverse_sigmoid(reference_points)
                 output_bbox_dn=output[:effect_num_dn]
-                output_bbox_norm = output[effect_num_dn:][0::(self.num_body_points+1)]
+                output_bbox_norm = output[effect_num_dn:][0::(self.num_body_points+1 + self.seperate_token_for_class)]
+                if self.seperate_token_for_class:
+                    output_class_norm = output[effect_num_dn:][1::(self.num_body_points+1 + self.seperate_token_for_class)] ####
+                    reference_before_sigmoid_class_norm = reference_before_sigmoid[effect_num_dn:][1::(self.num_body_points+1 + self.seperate_token_for_class)] ####
+                    #delta_unsig_class = self.bbox_embed[layer_id](output_class_norm) ##
+                    #outputs_unsig_class = delta_unsig_class + reference_before_sigmoid_class_norm
+                    # new_reference_points_for_class_norm =  outputs_unsig_norm.sigmoid()#outputs_unsig_class.sigmoid() ##
+
                 reference_before_sigmoid_bbox_dn=reference_before_sigmoid[:effect_num_dn]
-                reference_before_sigmoid_bbox_norm = reference_before_sigmoid[effect_num_dn:][0::(self.num_body_points+1)]
+                reference_before_sigmoid_bbox_norm = reference_before_sigmoid[effect_num_dn:][0::(self.num_body_points+1 + self.seperate_token_for_class)]
                 delta_unsig_dn = self.bbox_embed[layer_id](output_bbox_dn)
                 delta_unsig_norm = self.bbox_embed[layer_id](output_bbox_norm)
                 outputs_unsig_dn = delta_unsig_dn + reference_before_sigmoid_bbox_dn
                 outputs_unsig_norm = delta_unsig_norm + reference_before_sigmoid_bbox_norm
                 new_reference_points_for_box_dn = outputs_unsig_dn.sigmoid()
                 new_reference_points_for_box_norm = outputs_unsig_norm.sigmoid()
+                ### end of box and denoised boxes update
+                
+                ## start of keypoints update
                 output_kpt=output[effect_num_dn:].index_select(0,torch.tensor(self.kpt_index,device=output.device))
                 delta_xy_unsig = self.pose_embed[layer_id-self.num_box_decoder_layers](output_kpt)
                 outputs_unsig = reference_before_sigmoid[effect_num_dn:].index_select(0,torch.tensor(self.kpt_index,device=output.device)).clone() ##
@@ -766,7 +819,12 @@ class TransformerDecoder(nn.Module):
                 outputs_unsig[..., 2:] += delta_hw_unsig
                 new_reference_points_for_keypoint = outputs_unsig.sigmoid()
                 bs=new_reference_points_for_box_norm.shape[1]
-                new_reference_points_norm = torch.cat((new_reference_points_for_box_norm.unsqueeze(1), new_reference_points_for_keypoint.view(-1,self.num_body_points,bs,4)), dim=1).flatten(0,1)
+                
+                if self.seperate_token_for_class:
+                    new_reference_points_norm = torch.cat((new_reference_points_for_box_norm.unsqueeze(1), new_reference_points_for_box_norm.unsqueeze(1), new_reference_points_for_keypoint.view(-1,self.num_body_points,bs,4)), dim=1).flatten(0,1) ## append new class token here
+                else:
+                    new_reference_points_norm = torch.cat((new_reference_points_for_box_norm.unsqueeze(1), new_reference_points_for_keypoint.view(-1,self.num_body_points,bs,4)), dim=1).flatten(0,1)
+                
                 new_reference_points = torch.cat((new_reference_points_for_box_dn, new_reference_points_norm), dim=0)
 
             if self.rm_detach and 'dec' in self.rm_detach:
@@ -821,7 +879,8 @@ def build_transformer(args):
         embed_init_tgt=args.embed_init_tgt,
         num_body_points=args.num_body_points,
         num_box_decoder_layers=args.num_box_decoder_layers,
-        num_group=args.num_group
+        num_group=args.num_group,
+        num_dn = 0 if args.no_dn else args.dn_number,
     )
 
 

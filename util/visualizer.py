@@ -174,7 +174,7 @@ class COCOVisualizer():
                 ax.imshow(heatmap)
 
         if 'keypoints' in tgt:
-            sks = np.array(self.coco.loadCats(1)[0]['skeleton']) - 1
+            sks = np.array([[16,14],[14,12],[17,15],[15,13],[12,13],[6,12],[7,13],[6,7],[6,8],[7,9],[8,10],[9,11],[2,3],[1,2],[1,3],[2,4],[3,5],[4,6],[5,7]]) - 1 #np.array(self.coco.loadCats(1)[0]['skeleton']) - 1
             for idx, ann in enumerate(tgt['keypoints']):
                 if "kpt_bbox" in tgt:
                     for kpt_bbox in tgt['kpt_bbox'][idx].cpu():

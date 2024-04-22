@@ -23,7 +23,7 @@ class CocoDetection(torch.utils.data.Dataset):
         self.prepare = ConvertCocoPolysToMask(return_masks)
         if image_set == "train":
             self.img_folder = root_path / "images"
-            self.coco = COCO(root_path / "json/crowdpose_trainval.json")
+            self.coco = COCO(root_path / "annotations_train.json")#"json/crowdpose_trainval.json")
             imgIds = sorted(self.coco.getImgIds())
             self.all_imgIds = []
             for image_id in imgIds:
@@ -37,7 +37,7 @@ class CocoDetection(torch.utils.data.Dataset):
                 self.all_imgIds.append(image_id)
         else:
             self.img_folder = root_path / "images"
-            self.coco = COCO(root_path / "json/crowdpose_test.json")
+            self.coco = COCO(root_path / "annotations_valid.json")#"json/crowdpose_test.json")
             imgIds = sorted(self.coco.getImgIds())
             self.all_imgIds = []
             for image_id in imgIds:

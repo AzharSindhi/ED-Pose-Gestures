@@ -43,6 +43,7 @@ class EDPose(nn.Module):
                     num_group = 100,
                     num_body_points = 17,
                     num_box_decoder_layers = 2,
+                    seperate_token_for_class = False,
                     ):
         super().__init__()
         self.num_queries = num_queries
@@ -177,7 +178,14 @@ class EDPose(nn.Module):
                 self.transformer.enc_out_class_embed = copy.deepcopy(_class_embed)
             self.refpoint_embed = None
 
-
+        self.seperate_token_for_class = int(seperate_token_for_class)
+        start = 1 + self.seperate_token_for_class
+        self.kpt_index = []
+        for i in range(self.num_group):
+            self.kpt_index.extend(range(start, start + self.num_body_points))
+            start = start + self.num_body_points + 1 + self.seperate_token_for_class # excluding box and class token
+        transformer.decoder.kpt_index = self.kpt_index
+        transformer.decoder.seperate_token_for_class = self.seperate_token_for_class
         self._reset_parameters()
 
     def _reset_parameters(self):
@@ -191,21 +199,26 @@ class EDPose(nn.Module):
 
             device = targets[0]['boxes'].device
             bs = len(targets)
-            attn_mask_infere = torch.zeros(bs, self.nheads, self.num_group*(self.num_body_points+1), self.num_group*(self.num_body_points+1),
+            total_queries = self.num_body_points + 1 + int(self.seperate_token_for_class)
+            attn_mask_infere = torch.zeros(bs, self.nheads, self.num_group*(self.num_body_points+1 + self.seperate_token_for_class), self.num_group*(self.num_body_points+1 + self.seperate_token_for_class),
                                     device=device, dtype=torch.bool)
-            group_bbox_kpt = (self.num_body_points+1)
-            group_nobbox_kpt = self.num_body_points
-            kpt_index = [x for x in range(self.num_group * (self.num_body_points+1)) if x % (self.num_body_points+1) == 0]
-            for matchj in range(self.num_group * (self.num_body_points+1)):
+            group_bbox_kpt = (self.num_body_points+1 + self.seperate_token_for_class)
+            group_nobbox_kpt = self.num_body_points + self.seperate_token_for_class
+            # kpt_index = [x for x in range(self.num_group * (self.num_body_points+1)) if x % (self.num_body_points+1) == 0]
+            for matchj in range(self.num_group * (self.num_body_points+1 + self.seperate_token_for_class)):
                 sj = (matchj // group_bbox_kpt) * group_bbox_kpt
                 ej = (matchj // group_bbox_kpt + 1)*group_bbox_kpt
                 if sj > 0:
                     attn_mask_infere[:, :, matchj, :sj] = True
-                if ej < self.num_group * (self.num_body_points+1):
+                if ej < self.num_group * (self.num_body_points+1 + self.seperate_token_for_class):
                     attn_mask_infere[:, :, matchj, ej:] = True
-            for match_x in range(self.num_group * (self.num_body_points+1)):
+            for match_x in range(self.num_group * (self.num_body_points+1 + self.seperate_token_for_class)):
                 if match_x % group_bbox_kpt==0:
-                    attn_mask_infere[:,:,match_x,kpt_index]=False
+                    attn_mask_infere[:,:,match_x,self.kpt_index]=False
+                    if self.seperate_token_for_class:
+                        # class token will see both keypoints and boxes
+                        attn_mask_infere[:,:,match_x + 1, self.kpt_index]=False
+                        # attn_mask_infere[:,:,match_x + 1, 0::(self.num_body_points+2)]=False # can see all the boxes as well
 
             attn_mask_infere = attn_mask_infere.flatten(0, 1)
             return None, None, None, attn_mask_infere,None
@@ -295,6 +308,7 @@ class EDPose(nn.Module):
         input_query_bbox = inverse_sigmoid(knwon_boxes_expand)
 
         # prepare mask
+        # reconstruct cannot see each other
 
         if 'group2group' in self.dn_attn_mask_type_list:
             attn_mask = torch.zeros(bs, self.nheads, dn_number + self.num_queries, dn_number + self.num_queries, device=device, dtype=torch.bool)
@@ -316,23 +330,30 @@ class EDPose(nn.Module):
 
 
         if 'group2group' in self.dn_attn_mask_type_list:
-            attn_mask2 = torch.zeros(bs, self.nheads, dn_number + self.num_group*(self.num_body_points+1), dn_number + self.num_group*(self.num_body_points+1),
+            attn_mask2 = torch.zeros(bs, self.nheads, dn_number + self.num_group*(self.num_body_points+1 + self.seperate_token_for_class), dn_number + self.num_group*(self.num_body_points+1 + self.seperate_token_for_class),
                                     device=device, dtype=torch.bool)
             attn_mask2[:, :, dn_number:, :dn_number] = True
-            group_bbox_kpt = (self.num_body_points+1)
-            group_nobbox_kpt = self.num_body_points
-            kpt_index = [x for x in range(self.num_group * (self.num_body_points+1)) if x % (self.num_body_points+1) == 0]
-            for matchj in range(self.num_group * (self.num_body_points+1)):
+            group_bbox_kpt = (self.num_body_points+ 1 + self.seperate_token_for_class)
+            group_nobbox_kpt = self.num_body_points + self.seperate_token_for_class
+            # kpt_index = [x for x in range(self.num_group * (self.num_body_points+1)) if x % (self.num_body_points+1) == 0] ## change here
+            for matchj in range(self.num_group * (self.num_body_points+1 + self.seperate_token_for_class)):
                 sj = (matchj // group_bbox_kpt) * group_bbox_kpt
                 ej = (matchj // group_bbox_kpt + 1)*group_bbox_kpt
+                # print(matchj, sj, ej, ej - sj)
                 if sj > 0:
                     attn_mask2[:, :, dn_number:, dn_number:][:, :, matchj, :sj] = True
-                if ej < self.num_group * (self.num_body_points+1):
+                if ej < self.num_group * (self.num_body_points+1 + self.seperate_token_for_class):
                     attn_mask2[:, :, dn_number:, dn_number:][:, :, matchj, ej:] = True
 
-            for match_x in range(self.num_group * (self.num_body_points+1)):
+            # box can see all the keypoints
+            for match_x in range(self.num_group * (self.num_body_points+1 + self.seperate_token_for_class)):
                 if match_x % group_bbox_kpt==0:
-                    attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x,kpt_index]=False
+                    attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x,self.kpt_index]=False ## kpt index
+                    if self.seperate_token_for_class == 1:
+                        # class token will see both keypoints and boxes
+                        attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x + 1, self.kpt_index]=False
+                        attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x + 1, 0::(self.num_body_points+2)]=False # can see all the boxes as well
+
 
             for idx, (gt_boxes_i, gt_labels_i) in enumerate(zip(gt_boxes, gt_labels)):
                 num_gt_i = gt_boxes_i.shape[0]
@@ -346,9 +367,6 @@ class EDPose(nn.Module):
                     if ei < dn_number:
                         attn_mask2[idx, :, matchi, ei:dn_number] = True
             attn_mask2 = attn_mask2.flatten(0, 1)
-
-
-
 
 
         mask_dict = {
@@ -424,7 +442,7 @@ class EDPose(nn.Module):
             assert targets is None
             input_query_bbox = input_query_label = attn_mask =attn_mask1=attn_mask2= mask_dict = None
 
-        hs, reference, hs_enc, ref_enc, init_box_proposal = self.transformer(srcs, masks, input_query_bbox, poss, input_query_label, attn_mask,attn_mask2)
+        out, hs, reference, hs_enc, ref_enc, init_box_proposal = self.transformer(srcs, masks, input_query_bbox, poss, input_query_label, attn_mask,attn_mask2)
 
         # update human boxes
         effective_dn_number = self.dn_number if self.training else 0
@@ -438,12 +456,24 @@ class EDPose(nn.Module):
                 layer_cls=layer_cls_embed(layer_hs)
                 outputs_coord_list.append(layer_outputs_unsig)
                 outputs_class.append(layer_cls)
+                # predict gesture from corresponding token and gesture embedding vector and append to outputs_class_gesture
             else:
                 layer_hs_bbox_dn = layer_hs[:,:effective_dn_number,:]
-                layer_hs_bbox_norm = layer_hs[:,effective_dn_number:,:][:,0::(self.num_body_points+1),:]
+                layer_hs_bbox_norm = layer_hs[:,effective_dn_number:,:][:,0::(self.num_body_points+1 + self.seperate_token_for_class),:]
+
+                if self.seperate_token_for_class:
+                    # reference_before_sigmoid_class_norm = layer_ref_sig[:,effective_dn_number:,:][:,1::(self.num_body_points+1 + self.seperate_token_for_class),:]
+                    layer_hs_class_norm = layer_hs[:,effective_dn_number:,:][:,1::(self.num_body_points+1 + self.seperate_token_for_class),:]
+                    # layer_delta_class_unsig_norm = layer_bbox_embed(layer_hs_class_norm)
+                    # layer_outputs_unsig_class = layer_delta_class_unsig_norm  + inverse_sigmoid(reference_before_sigmoid_class_norm)
+                    # layer_outputs_unsig_class = layer_outputs_unsig_class.sigmoid()
+                    layer_cls_norm= layer_cls_embed(layer_hs_class_norm)
+                else:
+                    layer_cls_norm= layer_cls_embed(layer_hs_bbox_norm)
+
                 bs = layer_ref_sig.shape[0]
                 reference_before_sigmoid_bbox_dn = layer_ref_sig[:,:effective_dn_number,:]
-                reference_before_sigmoid_bbox_norm = layer_ref_sig[:,effective_dn_number:,:][:,0::(self.num_body_points+1),:]
+                reference_before_sigmoid_bbox_norm = layer_ref_sig[:,effective_dn_number:,:][:,0::(self.num_body_points+1 + self.seperate_token_for_class),:]
                 layer_delta_unsig_dn = layer_bbox_embed(layer_hs_bbox_dn)
                 layer_delta_unsig_norm = layer_bbox_embed(layer_hs_bbox_norm)
                 layer_outputs_unsig_dn = layer_delta_unsig_dn  + inverse_sigmoid(reference_before_sigmoid_bbox_dn)
@@ -452,15 +482,16 @@ class EDPose(nn.Module):
                 layer_outputs_unsig_norm = layer_outputs_unsig_norm.sigmoid()
                 layer_outputs_unsig=torch.cat((layer_outputs_unsig_dn,layer_outputs_unsig_norm),dim=1)
                 layer_cls_dn=layer_cls_embed(layer_hs_bbox_dn)
-                layer_cls_norm=layer_cls_embed(layer_hs_bbox_norm)
                 layer_cls=torch.cat((layer_cls_dn,layer_cls_norm),dim=1)
                 outputs_class.append(layer_cls)
                 outputs_coord_list.append(layer_outputs_unsig)
+                # predict gesture from corresponding token and gesture embedding vector and append to outputs_class_gesture
+
 
         # update keypoints boxes
         outputs_keypoints_list = []
         outputs_keypoints_hw = []
-        kpt_index = [x for x in range(self.num_group * (self.num_body_points+1)) if x % (self.num_body_points+1) != 0]
+
         for dec_lid, (layer_ref_sig, layer_hs) in enumerate(zip(reference[:-1], hs)):
             if dec_lid < self.num_box_decoder_layers:
                 assert isinstance(layer_hs, torch.Tensor)
@@ -469,9 +500,9 @@ class EDPose(nn.Module):
                 outputs_keypoints_list.append(layer_res)
             else:
                 bs = layer_ref_sig.shape[0]
-                layer_hs_kpt=layer_hs[:, effective_dn_number:, :].index_select(1,torch.tensor(kpt_index,device=layer_hs.device))
+                layer_hs_kpt=layer_hs[:, effective_dn_number:, :].index_select(1,torch.tensor(self.kpt_index,device=layer_hs.device))
                 delta_xy_unsig = self.pose_embed[dec_lid - self.num_box_decoder_layers](layer_hs_kpt)
-                layer_ref_sig_kpt = layer_ref_sig[:, effective_dn_number:, :].index_select(1, torch.tensor(kpt_index,device=layer_hs.device))
+                layer_ref_sig_kpt = layer_ref_sig[:, effective_dn_number:, :].index_select(1, torch.tensor(self.kpt_index,device=layer_hs.device))
                 layer_outputs_unsig_keypoints = delta_xy_unsig + inverse_sigmoid(layer_ref_sig_kpt[...,:2])
                 vis_xy_unsig = torch.ones_like(layer_outputs_unsig_keypoints,device=layer_outputs_unsig_keypoints.device)
                 xyv = torch.cat((layer_outputs_unsig_keypoints, vis_xy_unsig[:,:,0].unsqueeze(-1)),dim=-1)
@@ -495,7 +526,8 @@ class EDPose(nn.Module):
             assert  _out_class.shape[1] == _out_bbox.shape[1] == _out_keypoint.shape[1]
 
 
-        out = {'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord_list[-1],'pred_keypoints': outputs_keypoints_list[-1]}
+        out.update({'hs': [hs[-1]], 'reference': [reference[-1]], 'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord_list[-1],'pred_keypoints': outputs_keypoints_list[-1]})
+        out.update({"dn_number": self.dn_number, "mask_dict_not_none": dn_mask_dict is not None})
         if self.dn_number > 0 and dn_mask_dict is not None:
             out.update(
                     {
@@ -581,7 +613,8 @@ def build_edpose(args):
         cls_no_bias=args.cls_no_bias,
         num_group=args.num_group,
         num_body_points=args.num_body_points,
-        num_box_decoder_layers=args.num_box_decoder_layers
+        num_box_decoder_layers=args.num_box_decoder_layers,
+        seperate_token_for_class=args.seperate_token_for_class,
     )
     matcher = build_matcher(args)
 

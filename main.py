@@ -19,10 +19,12 @@ from engine import evaluate, train_one_epoch,inference_vis
 import models
 from util.config import DictAction, Config
 from util.utils import ModelEma, BestMetricHolder
+from dotenv import load_dotenv
 
+load_dotenv()
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
-    parser.add_argument('--config_file', '-c', type=str, required=True)
+    parser.add_argument('--config_file', '-c', type=str, default="config/edpose.cfg.py")#required=True)
     parser.add_argument('--options',
         nargs='+',
         action=DictAction,
@@ -68,7 +70,22 @@ def get_args_parser():
     parser.add_argument("--local_rank", type=int, help='local rank for DistributedDataParallel')
     parser.add_argument('--amp', action='store_true',
                         help="Train with mixed precision")
-    
+    parser.add_argument('--person_only', action='store_true',
+                        help="Train only person class")
+    parser.add_argument('--no_dn', action='store_true',
+                        help="Training using no denoising")
+    parser.add_argument("--seperate_token_for_class", action='store_true', help="fine tuning using seperate class token")
+
+    # when there is a seperate classifier
+
+    parser.add_argument("--seperate_classifier", action='store_true', help="fine tuning using seperate decoder for classes")
+    parser.add_argument('--edpose_model_path', help='load edpose from other checkpoint')
+    parser.add_argument('--edpose_finetune_ignore', type=str, nargs='+', help="which keys to ignore in the weights dictionary?")
+    parser.add_argument("--finetune_edpose", action='store_true', help="whether to finetune edpose or used saved weights")
+    parser.add_argument("--classifier_decoder_return_intermediate", action='store_true', help="return intermediate outputs from classifier decoder")
+    parser.add_argument("--classifier_use_deformable", action='store_true', help="use deformable DETR for classifier, otherwise the Vanilla decoder will be used")
+    parser.add_argument("--classifier_decoder_layers", type=int, default=2, help="number of decoder layers for classifier")
+
     return parser
 
 
@@ -80,6 +97,17 @@ def build_model_main(args):
     return model, criterion, postprocessors
 
 def main(args):
+    load_dotenv()
+    # args.dataset_file = "coco"
+    # args.output_dir = "logs/train/humanart_r50/"
+    os.makedirs(args.output_dir, exist_ok=True)
+    # args.distributed = False
+    # args.pretrain_model_path = "./models/edpose_r50_humanart.pth"
+    # args.config_file = "config/edpose.cfg.py"
+    # args.batch_size = 1
+    # args.num_body_points = 17
+    # args.backbone = "resnet50"
+    # args.options = None
     utils.init_distributed_mode(args)
     print("Loading config file from {}".format(args.config_file))
     time.sleep(args.rank * 0.02)
@@ -113,7 +141,7 @@ def main(args):
         args.humanart_path = os.environ.get("EDPOSE_HumanArt_PATH")
 
     # setup logger
-    os.makedirs(args.output_dir, exist_ok=True)
+    # os.makedirs(args.output_dir, exist_ok=True)
     logger = setup_logger(output=os.path.join(args.output_dir, 'info.txt'), distributed_rank=args.rank, color=False, name="detr")
     logger.info("git:\n  {}\n".format(utils.get_sha()))
     logger.info("Command: "+' '.join(sys.argv))
@@ -130,8 +158,13 @@ def main(args):
 
     if args.frozen_weights is not None:
         assert args.masks, "Frozen training is meant for segmentation only"
-    print(args)
 
+    if args.person_only:
+        args.num_classes = 1
+    if args.no_dn:
+        args.use_dn = False
+
+    print(args)
     device = torch.device(args.device)
 
     # fix the seed for reproducibility
@@ -139,7 +172,8 @@ def main(args):
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
-
+    if args.seperate_classifier:
+        args.modelname = "classifier"
     # build model
     model, criterion, postprocessors = build_model_main(args)
     wo_class_error = False
@@ -269,6 +303,7 @@ def main(args):
     print("Start training")
     start_time = time.time()
     best_map_holder = BestMetricHolder(use_ema=args.use_ema)
+    print("----------- args epochs----------------", args.epochs)
     for epoch in range(args.start_epoch, args.epochs):
         epoch_start_time = time.time()
         if args.distributed:
@@ -305,9 +340,16 @@ def main(args):
             model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
             wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None)
         )
+        # save coco evaluation results as text file
+        with open(os.path.join(output_dir, "val_coco_results_last.txt"), "w") as f:
+            f.write(coco_evaluator.summarize())
         map_regular = test_stats["coco_eval_keypoints_detr"][0]
         _isbest = best_map_holder.update(map_regular, epoch, is_ema=False)
         if _isbest:
+            # save coco evaluation results as text file
+            with open(os.path.join(output_dir, "val_coco_results_best.txt"), "w") as f:
+                f.write(coco_evaluator.summarize())
+
             checkpoint_path = output_dir / 'checkpoint_best_regular.pth'
             utils.save_on_master({
                 'model': model_without_ddp.state_dict(),
@@ -327,10 +369,17 @@ def main(args):
                 ema_m.module, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
                 wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None)
             )
+            # save coco evaluation results as text file
+            with open(os.path.join(output_dir, "ema_val_coco_results_last.txt"), "w") as f:
+                f.write(ema_coco_evaluator.summarize())
+
             log_stats.update({f'ema_test_{k}': v for k,v in ema_test_stats.items()})
             map_ema = ema_test_stats['coco_eval_keypoints_detr'][0]
             _isbest = best_map_holder.update(map_ema, epoch, is_ema=True)
             if _isbest:
+                # save coco evaluation results as text file
+                with open(os.path.join(output_dir, "ema_val_coco_results_best.txt"), "w") as f:
+                    f.write(ema_coco_evaluator.summarize())
                 checkpoint_path = output_dir / 'checkpoint_best_ema.pth'
                 utils.save_on_master({
                     'model': ema_m.module.state_dict(),
