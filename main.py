@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import gc
 import json
 import random
 import time
@@ -295,6 +296,11 @@ def main(args):
                 utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
 
             log_stats = {**{f'test_{k}': v for k, v in test_stats.items()} }
+            MB = 1024.0 * 1024.0
+            GB = 1024.0 * MB
+            memory=torch.cuda.max_memory_allocated()
+            log_stats['memory (MB)'] = memory / MB
+            log_stats['memory (GB)'] = memory / GB
             if args.output_dir and utils.is_main_process():
                 with (output_dir / "log.txt").open("a") as f:
                     f.write(json.dumps(log_stats) + "\n")
@@ -403,7 +409,11 @@ def main(args):
         epoch_time = time.time() - epoch_start_time
         epoch_time_str = str(datetime.timedelta(seconds=int(epoch_time)))
         log_stats['epoch_time'] = epoch_time_str
-
+        MB = 1024.0 * 1024.0
+        GB = 1024.0 * MB
+        memory=torch.cuda.max_memory_allocated()
+        log_stats['memory (MB)'] = memory / MB
+        log_stats['memory (GB)'] = memory / GB
         if args.output_dir and utils.is_main_process():
             with (output_dir / "log.txt").open("a") as f:
                 f.write(json.dumps(log_stats) + "\n")
@@ -418,6 +428,8 @@ def main(args):
                     for name in filenames:
                         torch.save(coco_evaluator.coco_eval["bbox"].eval,
                                    output_dir / "eval" / name)
+        torch.cuda.empty_cache()
+        gc.collect()
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))

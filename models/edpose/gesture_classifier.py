@@ -48,6 +48,7 @@ class EdPoseClassifier(nn.Module):
     def extract_layer_output(self, edpose_out, idx):
         last_layer_all_queries = edpose_out["hs"][idx]
         last_layer_all_reference = edpose_out["reference"][idx]
+        self.dn_number = edpose_out["dn_number"]
         if self.seperate_token_for_class:
             slice_start = 1
         else:
@@ -82,7 +83,7 @@ class EdPoseClassifier(nn.Module):
             # tgt_mask=edpose_out["attn_mask"],
             # tgt_mask2=edpose_out["attn_mask2"]
         )
-        return hs[-1], references[-1]
+        return hs, references
 
     def forward_vanilla_decoder(self, decoder_queries, edpose_out):
         hs = self.decoder(
@@ -119,12 +120,9 @@ class EdPoseClassifier(nn.Module):
         decoder_ref = torch.cat((dn_ref, match_ref), dim=1)
         # # forward to the decoder
         hs, _ = self.forward_decoder(decoder_queries, decoder_ref, edpose_out)
-        if len(hs.shape) == 2: # batch size dimension missing when batch_size = 1
-            hs = hs.unsqueeze(0)
         pred_class_logits = self.class_embed(hs)
         edpose_out = update_classification_information(edpose_out, pred_class_logits, aux_loss=False)
         return edpose_out
-
 
     def load_edpose_weights(self):
         checkpoint = torch.load(self.edpose_weights_path, map_location='cpu')['model']

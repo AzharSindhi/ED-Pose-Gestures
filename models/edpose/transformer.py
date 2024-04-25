@@ -371,16 +371,7 @@ class Transformer(nn.Module):
         #########################################################
         # Begin Decoder
         #########################################################
-        memory_info = {
-            "memory": memory,
-            "memory_key_padding_mask": mask_flatten,
-            "pos": lvl_pos_embed_flatten,
-            "level_start_index": level_start_index,
-            "spatial_shapes": spatial_shapes,
-            "valid_ratios": valid_ratios,
-            # "tgt_mask": attn_mask,
-            # "tgt_mask2": attn_mask2
-        }
+
         hs, references = self.decoder(
                 tgt=tgt.transpose(0, 1), 
                 memory=memory.transpose(0, 1), 
@@ -428,7 +419,16 @@ class Transformer(nn.Module):
         else:
             hs_enc = ref_enc = None
 
-
+        memory_info = {
+            "memory": memory,
+            "memory_key_padding_mask": mask_flatten,
+            "pos": lvl_pos_embed_flatten,
+            "level_start_index": level_start_index,
+            "spatial_shapes": spatial_shapes,
+            "valid_ratios": valid_ratios
+            # "tgt_mask": attn_mask,
+            # "tgt_mask2": attn_mask2
+        }
         return memory_info, hs, references, hs_enc, ref_enc, init_box_proposal
 
 

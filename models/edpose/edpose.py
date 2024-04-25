@@ -527,7 +527,7 @@ class EDPose(nn.Module):
 
 
         out.update({'hs': [hs[-1]], 'reference': [reference[-1]], 'pred_logits': outputs_class[-1], 'pred_boxes': outputs_coord_list[-1],'pred_keypoints': outputs_keypoints_list[-1]})
-        out.update({"dn_number": self.dn_number, "mask_dict_not_none": dn_mask_dict is not None})
+        out.update({"dn_number": effective_dn_number, "mask_dict_not_none": dn_mask_dict is not None})
         if self.dn_number > 0 and dn_mask_dict is not None:
             out.update(
                     {
