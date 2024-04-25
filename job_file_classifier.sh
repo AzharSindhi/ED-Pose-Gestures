@@ -2,11 +2,11 @@
 #SBATCH --time=14:00:00
 #SBATCH --gres=gpu:1   
 #SBATCH --mem-per-gpu=30G
-#SBATCH --job-name=edpose_classifier1
 #SBATCH --output=%x_%j.out
 #SBATCH --error=%x_%j.err
 
-export EDPOSE_COCO_PATH=/net/cluster/azhar/datasets/gestuers_keypoints_cmac/smell-gesture-recognition/coco_directory_gestures
+export EDPOSE_COCO_PATH=$WORK/smell-gesture-recognition/coco_directory_gestures
+cd $WORK/ED-Pose-Gestures/
 # Read and parse commands from the bash script
 commands=()  # Initialize an empty array to hold the commands
 current_command=""  # Temporary string to hold commands
@@ -37,8 +37,9 @@ fi
 num_jobs=${#commands[@]}
 echo "$num_jobs jobs will be submitted."
 # Launch multiple experiments in parallel
-for ((i=1; i<=$NUM_EXPERIMENTS; i++))
+num_jobs=1
+for ((i=0; i<$num_jobs; i++))
 do
-    sbatch ${COMMANDS[$i]}
+    sbatch --job-name="edpose_classifier1_$i" ${COMMANDS[$i]}
 done
 
