@@ -20,9 +20,6 @@ from engine import evaluate, train_one_epoch,inference_vis
 import models
 from util.config import DictAction, Config
 from util.utils import ModelEma, BestMetricHolder
-from dotenv import load_dotenv
-
-load_dotenv()
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
     parser.add_argument('--config_file', '-c', type=str, default="config/edpose.cfg.py")#required=True)
