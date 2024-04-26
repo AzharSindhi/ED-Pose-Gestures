@@ -5,7 +5,7 @@ export EDPOSE_COCO_PATH=/net/cluster/azhar/datasets/gestuers_keypoints_cmac/smel
 # python main.py  --config_file "config/edpose.cfg.py" --pretrain_model_path "./models/edpose_r50_coco.pth" --finetune_ignore "class_embed." \
 #     --output_dir "logs/train/without_classifier_without_token/all_classes_pretrained_r50_coco/" --options batch_size=$batch_size epochs=20 lr_drop=6 num_body_points=17 backbone='resnet50' \
 #     --dataset_file="coco" 
-batch_size=8
+batch_size=4
 
 python main.py  --seperate_classifier --config_file "config/classifier.cfg.py" --edpose_model_path "./models/edpose_r50_coco.pth" --edpose_finetune_ignore "class_embed." \
     --output_dir "logs/train/gestures_classifier_multiple/vanilla_cocopretrained_nd2/all_classes_pretrained_r50_coco/" --options batch_size=$batch_size epochs=20 lr_drop=6 num_body_points=17 backbone='resnet50' \

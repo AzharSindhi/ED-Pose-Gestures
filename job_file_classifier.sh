@@ -1,14 +1,30 @@
 #!/bin/bash
 #SBATCH --time=14:00:00
+#SBATCH --job-name=classifier_experiments
 #SBATCH --gres=gpu:1
-#SBATCH --job-name=edpose_classification
-#SBATCH --export=NONE
+#SBATCH --output=/home/woody/iwi5/iwi5197h/ED-Pose-Gestures/ED-Pose-Gestures/slurm_logs/%x_%j.txt
+#SBATCH --error=/home/woody/iwi5/iwi5197h/ED-Pose-Gestures/ED-Pose-Gestures/slurm_logs/%x_%j.txt
 
 module load python 
 module load cuda
+WORK_DIR=/home/woody/iwi5/iwi5197h/ED-Pose-Gestures
+cd $WORK_DIR/ED-Pose-Gestures/
+export EDPOSE_COCO_PATH=$WORK_DIR/coco_directory_gestures
 
-cd $WORK/ED-Pose-Gestures/
-export EDPOSE_COCO_PATH=$WORK/coco_directory_gestures
+## create environment
+echo "creating environment"
+
+conda create --name edpose python=3.8 -y
+conda activate edpose
+pip3 install torch torchvision
+pip install -r requirements.txt
+cd models/edpose/ops
+python setup.py build install
+# unit test (should see all checking is True)
+python test.py
+cd ../../..
+
+echo "created environment"
 # Read and parse commands from the bash script
 commands=()  # Initialize an empty array to hold the commands
 current_command=""  # Temporary string to hold commands
@@ -47,7 +63,7 @@ should_append=false  # Control flag for appending lines
 #     sbatch ${COMMANDS[$i]}
 # done
 python main.py  --seperate_classifier --config_file "config/classifier.cfg.py" --edpose_model_path "logs/train/gestures_allclasses_coco_pretrained_r50/checkpoint.pth" \
-    --output_dir "logs/train/gestures_classifier_multiple/deformable_finetune_nd2/all_classes_pretrained_r50_coco/" --options batch_size=$batch_size epochs=20 lr_drop=6 num_body_points=17 backbone='resnet50' \
+    --output_dir "logs/train/gestures_classifier_multiple/deformable_finetune_nd2/all_classes_pretrained_r50_coco/" --options batch_size=8 epochs=20 lr_drop=6 num_body_points=17 backbone='resnet50' \
     --finetune_edpose \
     --classifier_use_deformable \
     --dataset_file="coco" \
