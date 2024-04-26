@@ -2,8 +2,8 @@
 #SBATCH --time=14:00:00
 #SBATCH --job-name=classifier_experiments
 #SBATCH --gres=gpu:1
-#SBATCH --output=/home/woody/iwi5/iwi5197h/ED-Pose-Gestures/ED-Pose-Gestures/slurm_logs/%x_%j.txt
-#SBATCH --error=/home/woody/iwi5/iwi5197h/ED-Pose-Gestures/ED-Pose-Gestures/slurm_logs/%x_%j.txt
+#SBATCH --output=/home/woody/iwi5/iwi5197h/ED-Pose-Gestures/slurm_logs/%x_%j.txt
+#SBATCH --error=/home/woody/iwi5/iwi5197h/ED-Pose-Gestures/slurm_logs/%x_%j.txt
 
 module load python 
 module load cuda
@@ -14,8 +14,8 @@ export EDPOSE_COCO_PATH=$WORK_DIR/coco_directory_gestures
 ## create environment
 echo "creating environment"
 
-conda create --name edpose python=3.8 -y
-conda activate edpose
+python3 -m venv venv
+source venv/bin/activate
 pip3 install torch torchvision
 pip install -r requirements.txt
 cd models/edpose/ops
@@ -68,4 +68,8 @@ python main.py  --seperate_classifier --config_file "config/classifier.cfg.py" -
     --classifier_use_deformable \
     --dataset_file="coco" \
     --classifier_decoder_layers=2
+
+deactivate
+rm -rf slurm_logs/
+rm -rf venv/
 
