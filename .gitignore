@@ -20,6 +20,7 @@ parts/
 sdist/
 var/
 wheels/
+slurm_logs/
 pip-wheel-metadata/
 share/python-wheels/
 outputs/

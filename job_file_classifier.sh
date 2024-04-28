@@ -2,24 +2,24 @@
 #SBATCH --time=00:05:00
 #SBATCH --job-name=classifier_experiments
 #SBATCH --gres=gpu:1
-#SBATCH --output=/home/woody/iwi5/iwi5197h/ED-Pose-Gestures/slurm_logs/%x_%j.txt
-#SBATCH --error=/home/woody/iwi5/iwi5197h/ED-Pose-Gestures/slurm_logs/%x_%j.txt
+#SBATCH --output=/home/woody/iwi5/iwi5197h/ED-Pose-Gestures/slurm_logs/%x_%j_out.txt
+#SBATCH --error=/home/woody/iwi5/iwi5197h/ED-Pose-Gestures/slurm_logs/%x_%j_err.txt
 
-set -e
+set -e # exit on error to prevent crazy stuff form happening unnoticed
 
-#module load python 
-#module load cuda
+# module load python 
+# module load cuda
 WORK_DIR=/home/woody/iwi5/iwi5197h
 cd $WORK_DIR/ED-Pose-Gestures/
+rm -rf slurm_logs/
 export EDPOSE_COCO_PATH=$WORK_DIR/coco_directory_gestures
-rm -rf slurm_jobs/
 ## create environment
 echo "creating environment"
 
-#python3 -m venv venv
+# python3 -m venv venv
 source venv/bin/activate
-#pip3 install torch torchvision
-#pip install -r requirements.txt
+# pip3 install torch torchvision
+# pip install -r requirements.txt
 cd models/edpose/ops
 python setup.py build install
 # unit test (should see all checking is True)
