@@ -128,7 +128,7 @@ class ConvertCocoPolysToMask(object):
         if self.num_classes > 1:
             classes = [obj["category_id"] for obj in anno]
         else:
-            classes = [1] * len(anno)
+            classes = [0] * len(anno)
         classes = torch.tensor(classes, dtype=torch.int64)
         if self.return_masks:
             segmentations = [obj["segmentation"] for obj in anno]

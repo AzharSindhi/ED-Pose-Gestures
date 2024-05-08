@@ -11,3 +11,5 @@ yapf
 timm
 opencv-python
 python-dotenv
+yapf==0.40.1
+numpy==1.20.0

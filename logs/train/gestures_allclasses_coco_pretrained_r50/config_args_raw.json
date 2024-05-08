@@ -1,0 +1,37 @@
+{
+  "config_file": "config/edpose.cfg.py",
+  "options": {
+    "batch_size": 4,
+    "epochs": 20,
+    "lr_drop": 6,
+    "num_body_points": 17,
+    "backbone": "resnet50"
+  },
+  "dataset_file": "coco",
+  "coco_path": null,
+  "remove_difficult": false,
+  "fix_size": false,
+  "output_dir": "logs/train/gestures_allclasses_coco_pretrained_r50/",
+  "note": "",
+  "device": "cuda",
+  "seed": 42,
+  "resume": "",
+  "pretrain_model_path": "./models/edpose_r50_coco.pth",
+  "finetune_ignore": [
+    "class_embed."
+  ],
+  "start_epoch": 0,
+  "eval": false,
+  "num_workers": 0,
+  "test": false,
+  "debug": false,
+  "find_unused_params": false,
+  "save_results": false,
+  "save_log": false,
+  "world_size": 1,
+  "dist_url": "env://",
+  "rank": 0,
+  "local_rank": 0,
+  "amp": false,
+  "distributed": false
+}

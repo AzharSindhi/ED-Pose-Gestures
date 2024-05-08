@@ -8,7 +8,7 @@ import torch
 import util.misc as utils
 from datasets.coco_eval import CocoEvaluator
 from util import box_ops, keypoint_ops
-
+import gc
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
@@ -49,7 +49,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
         loss_dict_reduced_scaled = {k: v * weight_dict[k]
                                     for k, v in loss_dict_reduced.items() if k in weight_dict}
         losses_reduced_scaled = sum(loss_dict_reduced_scaled.values())
-
+        move_tensors_to_cpu(loss_dict_reduced_scaled)
+        move_tensors_to_cpu(loss_dict_reduced_unscaled)
         loss_value = losses_reduced_scaled.item()
 
         if not math.isfinite(loss_value):
@@ -100,18 +101,21 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
     resstat = {k: meter.global_avg for k, meter in metric_logger.meters.items() if meter.count > 0}
     if getattr(criterion, 'loss_weight_decay', False):
         resstat.update({f'weight_{k}': v for k,v in criterion.weight_dict.items()})
+    torch.cuda.empty_cache()
+    gc.collect()
     return resstat
 
 def move_list_dict_to_cpu(list_dict):
     for _idx, _dict in enumerate(list_dict):
         for key, value in _dict.items():
             if isinstance(value, torch.Tensor):
-                list_dict[_idx][key] = value.cpu()
+                list_dict[_idx][key] = value.detach().cpu()
     return list_dict
+
 def move_tensors_to_cpu(dictionary):
     for key, value in dictionary.items():
         if isinstance(value, torch.Tensor):
-            dictionary[key] = value.cpu()
+            dictionary[key] = value.detach().cpu()
 
 @torch.no_grad()
 def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir, wo_class_error=False, args=None, logger=None):
@@ -150,11 +154,12 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
                 outputs = model(samples, targets)
             else:
                 outputs = model(samples)
-        del samples, outputs # save memory
-        # move_tensors_to_cpu(outputs)
-        # move_list_dict_to_cpu(targets)
+        
+        move_tensors_to_cpu(outputs)
+        targets = move_list_dict_to_cpu(targets)
         orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
         results = postprocessors['bbox'](outputs, orig_target_sizes)
+        del samples, outputs # save memory
         res = {target['image_id'].item(): output for target, output in zip(targets, results)}
         if coco_evaluator is not None:
             coco_evaluator.update(res)
@@ -176,6 +181,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         if 'bbox' in postprocessors.keys():
             stats['coco_eval_bbox'] = coco_evaluator.coco_eval['bbox'].stats.tolist()
             stats['coco_eval_keypoints_detr'] = coco_evaluator.coco_eval['keypoints'].stats.tolist()
+    
     return stats, coco_evaluator
 
 

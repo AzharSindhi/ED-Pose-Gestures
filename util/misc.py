@@ -149,8 +149,8 @@ def reduce_dict(input_dict, average=True):
         # sort the keys so that they are consistent across processes
         for k in sorted(input_dict.keys()):
             names.append(k)
-            values.append(input_dict[k])
-        values = torch.stack(values, dim=0)
+            values.append(input_dict[k].item())
+        values = torch.tensor(values)
         dist.all_reduce(values)
         if average:
             values /= world_size
@@ -490,6 +490,7 @@ def init_distributed_mode(args):
     args.distributed = True
     torch.cuda.set_device(args.local_rank)
     args.dist_backend = 'nccl'
+    #args.dist_url = "env://"
     print('| distributed init (rank {}): {}'.format(args.rank, args.dist_url), flush=True)
     torch.distributed.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
                                          world_size=args.world_size, rank=args.rank)

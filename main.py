@@ -20,6 +20,9 @@ from engine import evaluate, train_one_epoch,inference_vis
 import models
 from util.config import DictAction, Config
 from util.utils import ModelEma, BestMetricHolder
+from dotenv import load_dotenv
+load_dotenv()
+
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
     parser.add_argument('--config_file', '-c', type=str, default="config/edpose.cfg.py")#required=True)
@@ -54,7 +57,7 @@ def get_args_parser():
     parser.add_argument('--test', action='store_true')
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--find_unused_params', action='store_true')
-    
+    parser.add_argument('--decoder_box_layers', default=2, type=int)
 
     parser.add_argument('--save_results', action='store_true')
     parser.add_argument('--save_log', action='store_true')
@@ -65,7 +68,7 @@ def get_args_parser():
     parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
     parser.add_argument('--rank', default=0, type=int,
                         help='number of distributed processes')
-    parser.add_argument("--local_rank", type=int, help='local rank for DistributedDataParallel')
+    parser.add_argument("--local-rank", type=int, help='local rank for DistributedDataParallel')
     parser.add_argument('--amp', action='store_true',
                         help="Train with mixed precision")
     parser.add_argument('--person_only', action='store_true',
@@ -95,18 +98,18 @@ def build_model_main(args):
     return model, criterion, postprocessors
 
 def main(args):
-    load_dotenv()
+    # load_dotenv()
     # args.dataset_file = "coco"
     # args.output_dir = "logs/train/humanart_r50/"
     os.makedirs(args.output_dir, exist_ok=True)
-    # args.distributed = False
     # args.pretrain_model_path = "./models/edpose_r50_humanart.pth"
     # args.config_file = "config/edpose.cfg.py"
     # args.batch_size = 1
     # args.num_body_points = 17
     # args.backbone = "resnet50"
     # args.options = None
-    utils.init_distributed_mode(args)
+    args.distributed = False
+    # utils.init_distributed_mode(args)
     print("Loading config file from {}".format(args.config_file))
     time.sleep(args.rank * 0.02)
     cfg = Config.fromfile(args.config_file)
@@ -425,6 +428,8 @@ def main(args):
                     for name in filenames:
                         torch.save(coco_evaluator.coco_eval["bbox"].eval,
                                    output_dir / "eval" / name)
+
+        print(torch.cuda.memory_summary())
         torch.cuda.empty_cache()
         gc.collect()
     total_time = time.time() - start_time

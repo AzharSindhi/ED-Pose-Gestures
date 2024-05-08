@@ -147,11 +147,12 @@ dmypy.json
 *.h5
 *.tar
 *.tar.gz
-
+*.pth
+mlruns/
+mlartifacts/
 # Lightning-Hydra-Template
 configs/local/default.yaml
 /data/
-/logs/
 .env
 
 # Aim logging
