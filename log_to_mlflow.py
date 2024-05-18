@@ -18,7 +18,7 @@ exclude_dirs = [
     "humanart_r50_gestures_persononly_old",
 ]
 key_mapping = {
-    "test_coco_eval_bbox"
+    "test_coco_eval_bbox": "testAP"
 }
 mlflow.set_tracking_uri(uri="http://127.0.0.1:5000")   
 
@@ -53,7 +53,8 @@ def log_metrics_with_mlflow(metrics):
         key = key.replace("(", "_")
         key = key.replace(")", "")
         if isinstance(value, list):
-            mlflow.log_metric(f"{key}_AP", float(value[0]))
+            key = key.split("_")[0]
+            mlflow.log_metric(f"{key}AP", float(value[0]))
             # for i, item in enumerate(value):
             #     mlflow.log_metric(key=f"{key}_{i}", value=item)
         else:
@@ -73,8 +74,8 @@ def log_artificats(dir_path):
         mlflow.log_artifact(val_coco_last)
 
 def log_run(dir_path, experiment_name, run_name):
-    run_name = experiment_name + "_" + run_name.split("_")[0]
-    model_type = dir_path.split("/")[-3].split("_")[1]
+    run_name = experiment_name + "-" + run_name.split("_")[0] + "-" + run_name.split("_")[-1]
+    model_type = dir_path.split("/")[-3]
     mlflow.set_experiment(model_type)
     with mlflow.start_run():
         mlflow.set_tag("mlflow.runName", f"{model_type}_{run_name}")
