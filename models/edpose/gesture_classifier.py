@@ -20,7 +20,8 @@ class EdPoseClassifier(nn.Module):
                 edpose_weights_path=None,
                 edpose_finetune_ignore=None,
                 cls_no_bias=False,
-                use_deformable=True):
+                use_deformable=True,
+                classifier_type="partial"):
         
         super(EdPoseClassifier, self).__init__()
         self.edpose_model = edpose_model
@@ -44,6 +45,30 @@ class EdPoseClassifier(nn.Module):
             _class_embed.bias.data = torch.ones(num_classes) * bias_value
         
         self.class_embed = _class_embed
+        # classifer full
+        self.classifier_type = classifier_type
+        self.out_size = 100
+        self.set_size = 18 + self.seperate_token_for_class
+        self.apply_content_transform = True
+        self.ref_transform = nn.Linear(self.set_size * 4, 4)
+        self.query_transform = nn.Linear(self.set_size * 256, 256)
+
+    def reshape_and_transform(self, input, target_dim=256):
+        """
+        Transform the input vector to the required shape
+        """
+        b, seq_len, dim = input.shape
+        inp = torch.reshape(input, (b, self.out_size, self.set_size, -1))
+        inp = torch.reshape(inp, (b, self.out_size, -1))
+        ## optional transform here
+        if target_dim == 4:
+            # transform bbox (reference vector) here from 18*4 into 4
+            inp = self.ref_transform(inp)
+        elif self.apply_content_transform:
+            # transform the content(query vector) here from 18*256 into 256 or into anyother dimension
+            inp = self.query_transform(inp)
+
+        return inp
     
     def extract_layer_output(self, edpose_out, idx):
         last_layer_all_queries = edpose_out["hs"][idx]
@@ -53,11 +78,17 @@ class EdPoseClassifier(nn.Module):
             slice_start = 1
         else:
             slice_start = 0
-        
+
         layer_hs_bbox_dn = last_layer_all_queries[:,:self.dn_number,:]
-        layer_hs_bbox_norm = last_layer_all_queries[:,self.dn_number:,:][:,slice_start::(self.num_body_points+1 + self.seperate_token_for_class),:]
         layer_ref_bbox_dn = last_layer_all_reference[:,:self.dn_number,:]
-        layer_ref_bbox_norm = last_layer_all_reference[:,self.dn_number:,:][:,slice_start::(self.num_body_points+1 + self.seperate_token_for_class),:]
+
+        if self.classifier_type == "partial":
+            layer_hs_bbox_norm = last_layer_all_queries[:,self.dn_number:,:][:,slice_start::(self.num_body_points+1 + self.seperate_token_for_class),:]
+            layer_ref_bbox_norm = last_layer_all_reference[:,self.dn_number:,:][:,slice_start::(self.num_body_points+1 + self.seperate_token_for_class),:]
+        else:
+            layer_hs_bbox_norm = self.reshape_and_transform(last_layer_all_queries[:,self.dn_number:,:])
+            layer_ref_bbox_norm = self.reshape_and_transform(last_layer_all_reference[:,self.dn_number:,:], target_dim=4)
+
         return layer_hs_bbox_dn, layer_hs_bbox_norm, layer_ref_bbox_dn, layer_ref_bbox_norm
 
     def forward_decoder(self, decoder_queries, refpoints_sigmoid, edpose_out, return_last=True):
@@ -164,7 +195,8 @@ def build_classifier(args):
                             edpose_weights_path=args.edpose_model_path,
                             edpose_finetune_ignore=args.edpose_finetune_ignore,
                             cls_no_bias=args.cls_no_bias,
-                            use_deformable=args.classifier_use_deformable
+                            use_deformable=args.classifier_use_deformable,
+                            classifier_type=args.classifier_type
                         )
     return model, criterion, postprocessors
 

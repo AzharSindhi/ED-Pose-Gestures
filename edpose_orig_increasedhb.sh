@@ -24,15 +24,9 @@ echo "creating environment"
 # python3 -m venv venv
 source venv/bin/activate
 commands=(
-    "python main.py  --config_file config/edpose.cfg.py --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
-    --output_dir logs/train/edpose_original/all_classes_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+    "python main.py  --dec_layers 8 --config_file config/edpose.cfg.py --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
+    --output_dir logs/train/edpose_increased_layers/all_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --dataset_file=coco"
-    
-    "python main.py  --config_file config/edpose.cfg.py --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
-    --output_dir logs/train/edpose_original/persononly_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
-    --dataset_file=coco \
-    --person_only"
-
     ) 
 
 srun ${commands[$SLURM_ARRAY_TASK_ID]}

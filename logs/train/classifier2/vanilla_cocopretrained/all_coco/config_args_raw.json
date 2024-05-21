@@ -11,7 +11,7 @@
   "coco_path": null,
   "remove_difficult": false,
   "fix_size": false,
-  "output_dir": "logs/train/gestures_classifier_multiple/vanilla_cocopretrained_nd2/all_classes_pretrained_r50_coco/",
+  "output_dir": "logs/train/classifier2/vanilla_cocopretrained/all_coco/",
   "note": "",
   "device": "cuda",
   "seed": 42,
@@ -25,6 +25,7 @@
   "debug": false,
   "find_unused_params": true,
   "decoder_box_layers": 2,
+  "dec_layers": 6,
   "save_results": false,
   "save_log": false,
   "world_size": 1,
@@ -34,8 +35,9 @@
   "amp": false,
   "person_only": false,
   "no_dn": false,
-  "seperate_token_for_class": true,
+  "seperate_token_for_class": false,
   "seperate_classifier": true,
+  "classifier_type": "full",
   "edpose_model_path": "./models/edpose_r50_coco.pth",
   "edpose_finetune_ignore": [
     "class_embed."

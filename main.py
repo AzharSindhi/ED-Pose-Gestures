@@ -58,7 +58,7 @@ def get_args_parser():
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--find_unused_params', action='store_true')
     parser.add_argument('--decoder_box_layers', default=2, type=int)
-
+    parser.add_argument('--dec_layers', default=6, type=int)
     parser.add_argument('--save_results', action='store_true')
     parser.add_argument('--save_log', action='store_true')
 
@@ -80,7 +80,8 @@ def get_args_parser():
     # when there is a seperate classifier
 
     parser.add_argument("--seperate_classifier", action='store_true', help="fine tuning using seperate decoder for classes")
-    parser.add_argument('--edpose_model_path', help='load edpose from other checkpoint')
+    parser.add_argument('--classifier_type', type=str, choices=["full", "partial"], default="partial", help='specifiy the classifier type')
+    parser.add_argument('--edpose_model_path', type=str, help='load edpose from other checkpoint')
     parser.add_argument('--edpose_finetune_ignore', type=str, nargs='+', help="which keys to ignore in the weights dictionary?")
     parser.add_argument("--finetune_edpose", action='store_true', help="whether to finetune edpose or used saved weights")
     parser.add_argument("--classifier_decoder_return_intermediate", action='store_true', help="return intermediate outputs from classifier decoder")
@@ -92,7 +93,7 @@ def get_args_parser():
 
 def build_model_main(args):
     from models.registry import MODULE_BUILD_FUNCS
-    assert args.modelname in MODULE_BUILD_FUNCS._module_dict
+    assert args.modelname in MODULE_BUILD_FUNCS._module_dict, f"{args.modelname} not found on registery"
     build_func = MODULE_BUILD_FUNCS.get(args.modelname)
     model, criterion, postprocessors = build_func(args)
     return model, criterion, postprocessors
@@ -175,6 +176,7 @@ def main(args):
     random.seed(seed)
     if args.seperate_classifier:
         args.modelname = "classifier"
+
     # build model
     model, criterion, postprocessors = build_model_main(args)
     wo_class_error = False
