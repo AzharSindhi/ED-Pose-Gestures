@@ -25,24 +25,24 @@ echo "creating environment"
 source venv/bin/activate
 commands=(
     "python main.py  --config_file config/edpose.cfg.py --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
-    --output_dir logs/train/edpose_original/all_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+    --output_dir logs/train_sniffy/edpose_original/all_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --dataset_file=coco"
     
     "python main.py  --config_file config/edpose.cfg.py --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
-    --output_dir logs/train/edpose_original/person_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+    --output_dir logs/train_sniffy/edpose_original/person_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --dataset_file=coco \
     --person_only"
     
-    "python main.py  --config_file config/edpose.cfg.py --pretrain_model_path logs/train/gestures_persononly_coco_pretrained_r50/checkpoint.pth --finetune_ignore class_embed. \
-    --output_dir logs/train/edpose_original/all_edpose/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+    "python main.py  --config_file config/edpose.cfg.py --pretrain_model_path logs/train_sniffy/gestures_persononly_coco_pretrained_r50/checkpoint.pth --finetune_ignore class_embed. \
+    --output_dir logs/train_sniffy/edpose_original/all_edpose/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --dataset_file=coco"
 
     "python main.py  --dec_layers 8 --config_file config/edpose.cfg.py --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
-    --output_dir logs/train/edpose_nd8/all_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+    --output_dir logs/train_sniffy/edpose_nd8/all_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --dataset_file=coco"
 
-    "python main.py  --dec_layers 8 --config_file config/edpose.cfg.py --pretrain_model_path logs/train/gestures_allclasses_coco_pretrained_r50/checkpoint.pth --finetune_ignore class_embed. \
-    --output_dir logs/train/edpose_nd8/finetuned/all_edpose/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+    "python main.py  --dec_layers 8 --config_file config/edpose.cfg.py --pretrain_model_path logs/train_sniffy/gestures_allclasses_coco_pretrained_r50/checkpoint.pth --finetune_ignore class_embed. \
+    --output_dir logs/train_sniffy/edpose_nd8/finetuned/all_edpose/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --dataset_file=coco"
 
     ) 
