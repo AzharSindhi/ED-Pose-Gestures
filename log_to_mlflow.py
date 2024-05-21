@@ -16,6 +16,10 @@ exclude_dirs = [
     "gestures_persononly_coco_pretrained_r50",
     "humanart_debug",
     "humanart_r50_gestures_persononly_old",
+    "classi_token", 
+    "edpose",
+    "extratoken",
+    "classifier2",
 ]
 key_mapping = {
     "test_coco_eval_bbox": "testAP"

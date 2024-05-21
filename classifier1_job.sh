@@ -3,7 +3,7 @@
 #SBATCH --job-name=classifier1_experiments
 #SBATCH --gres=gpu:1
 #SBATCH --partition=a100,v100
-#SBATCH --array=0-1  # Adjust based on the number of experiments
+#SBATCH --array=0-5  # Adjust based on the number of experiments
 #SBATCH --output=/home/woody/iwi5/iwi5197h/ED-Pose-Gestures/slurm_logs/%x_%j_out.txt
 #SBATCH --error=/home/woody/iwi5/iwi5197h/ED-Pose-Gestures/slurm_logs/%x_%j_err.txt
 
@@ -39,43 +39,42 @@ source venv/bin/activate
 
 commands=(
 "python  main.py  --seperate_classifier --config_file config/classifier.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
-    --output_dir logs/train/classifier1/vanilla_cocofinetune/all_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+    --output_dir logs/train/classifier1/vanilla_finetune/all_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --finetune_edpose \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params"
 
 "python  main.py  --seperate_classifier --config_file config/classifier.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
-    --output_dir logs/train/classifier1/deformable_cocofinetune/all_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+    --output_dir logs/train/classifier1/deformable_finetune/all_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --classifier_use_deformable \
     --finetune_edpose \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params"
+
+"python  main.py  --seperate_classifier --config_file config/classifier.cfg.py --edpose_model_path logs/train/gestures_allclasses_coco_pretrained_r50/checkpoint.pth \
+    --output_dir logs/train/classifier1/deformable_nofinetune/all_edpose/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+    --classifier_use_deformable \
+    --dataset_file=coco \
+    --classifier_decoder_layers=2 --find_unused_params"
+
+"python  main.py  --seperate_classifier --config_file config/classifier.cfg.py --edpose_model_path logs/train/gestures_allclasses_coco_pretrained_r50/checkpoint.pth \
+    --output_dir logs/train/classifier1/deformable_finetune/all_edpose/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+    --finetune_edpose \
+    --classifier_use_deformable \
+    --dataset_file=coco \
+    --classifier_decoder_layers=2 --find_unused_params" 
+
+"python  main.py  --seperate_classifier --config_file config/classifier.cfg.py --edpose_model_path logs/train/gestures_allclasses_coco_pretrained_r50/checkpoint.pth \
+    --output_dir logs/train/classifier1/vanilla_nofinetune/all_edpose/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+    --dataset_file=coco \
+    --classifier_decoder_layers=2 --find_unused_params"
+
+"python  main.py  --seperate_classifier --config_file config/classifier.cfg.py --edpose_model_path logs/train/gestures_allclasses_coco_pretrained_r50/checkpoint.pth \
+    --output_dir logs/train/classifier1/vanilla_finetune/all_edpose/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+    --finetune_edpose \
+    --dataset_file=coco \
+    --classifier_decoder_layers=2 --find_unused_params"
 )
-
-# "python  main.py  --seperate_classifier --config_file config/classifier.cfg.py --edpose_model_path logs/train/gestures_allclasses_coco_pretrained_r50/checkpoint.pth \
-#     --output_dir logs/train/classifier1/deformable_nofinetune/all_edpose/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
-#     --classifier_use_deformable \
-#     --dataset_file=coco \
-#     --classifier_decoder_layers=2 --find_unused_params"
-
-# "python  main.py  --seperate_classifier --config_file config/classifier.cfg.py --edpose_model_path logs/train/gestures_allclasses_coco_pretrained_r50/checkpoint.pth \
-#     --output_dir logs/train/classifier1/deformable_finetune/all_edpose/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
-#     --finetune_edpose \
-#     --classifier_use_deformable \
-#     --dataset_file=coco \
-#     --classifier_decoder_layers=2 --find_unused_params" 
-
-# "python  main.py  --seperate_classifier --config_file config/classifier.cfg.py --edpose_model_path logs/train/gestures_allclasses_coco_pretrained_r50/checkpoint.pth \
-#     --output_dir logs/train/classifier1/vanilla_nofinetune/all_edpose/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
-#     --dataset_file=coco \
-#     --classifier_decoder_layers=2 --find_unused_params"
-
-# "python  main.py  --seperate_classifier --config_file config/classifier.cfg.py --edpose_model_path logs/train/gestures_allclasses_coco_pretrained_r50/checkpoint.pth \
-#     --output_dir logs/train/classifier1/vanilla_finetune/all_edpose/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
-#     --finetune_edpose \
-#     --dataset_file=coco \
-#     --classifier_decoder_layers=2 --find_unused_params"
-# )
 
 # echo ${commands[0]}
 srun ${commands[$SLURM_ARRAY_TASK_ID]}

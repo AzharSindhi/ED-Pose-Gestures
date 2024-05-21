@@ -39,13 +39,13 @@ source venv/bin/activate
 
 commands=(
 "python  main.py  --seperate_classifier --classifier_type full --config_file config/classifier.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
-    --output_dir logs/train/classifier2/vanilla_cocopretrained/all_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+    --output_dir logs/train/classifier2/vanilla_finetune/all_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --finetune_edpose \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params"
 
 "python  main.py  --seperate_classifier --classifier_type full --config_file config/classifier.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
-    --output_dir logs/train/classifier2/deformable_cocopretrained/all_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+    --output_dir logs/train/classifier2/deformable_finetune/all_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --classifier_use_deformable \
     --finetune_edpose \
     --dataset_file=coco \
