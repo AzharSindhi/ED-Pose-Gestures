@@ -8,7 +8,7 @@
     "backbone": "resnet50"
   },
   "dataset_file": "coco",
-  "coco_path": "/net/cluster/azhar/datasets/gestuers_keypoints_cmac/smell-gesture-recognition/coco_directory_gestures",
+  "coco_path": "/home/woody/iwi5/iwi5197h/coco_directory_gestures",
   "remove_difficult": false,
   "fix_size": false,
   "output_dir": "logs/train/classifier2/vanilla_cocopretrained/all_coco/",

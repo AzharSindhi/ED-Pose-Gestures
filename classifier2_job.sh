@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --time=01:00:00
-#SBATCH --job-name=token_classifier_experiments
+#SBATCH --job-name=classifier2_experiments
 #SBATCH --gres=gpu:1
 #SBATCH --partition=a100,v100
 #SBATCH --array=0-5  # Adjust based on the number of experiments

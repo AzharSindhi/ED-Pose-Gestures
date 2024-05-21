@@ -11,7 +11,7 @@
   "coco_path": "/home/woody/iwi5/iwi5197h/coco_directory_gestures",
   "remove_difficult": false,
   "fix_size": false,
-  "output_dir": "logs/train/classifier2/deformable_nofinetune/all_edpose/",
+  "output_dir": "logs/train/classifier1/vanilla_cocofinetune/all_coco/",
   "note": "",
   "device": "cuda",
   "seed": 42,
@@ -37,12 +37,14 @@
   "no_dn": false,
   "seperate_token_for_class": false,
   "seperate_classifier": true,
-  "classifier_type": "full",
-  "edpose_model_path": "logs/train/gestures_allclasses_coco_pretrained_r50/checkpoint.pth",
-  "edpose_finetune_ignore": null,
-  "finetune_edpose": false,
+  "classifier_type": "partial",
+  "edpose_model_path": "./models/edpose_r50_coco.pth",
+  "edpose_finetune_ignore": [
+    "class_embed."
+  ],
+  "finetune_edpose": true,
   "classifier_decoder_return_intermediate": false,
-  "classifier_use_deformable": true,
+  "classifier_use_deformable": false,
   "classifier_decoder_layers": 2,
   "distributed": false,
   "data_aug_scales": [
