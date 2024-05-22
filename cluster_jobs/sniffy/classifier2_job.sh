@@ -38,40 +38,44 @@ source venv/bin/activate
 # export EDPOSE_COCO_PATH=$WORK_DIR/coco_directory_gestures
 
 commands=(
-"python  main.py  --seperate_classifier --classifier_type full --config_file config/classifier.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
+"python  main.py --num_classes 7  --seperate_classifier --classifier_type full --config_file config/classifier.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
     --output_dir logs/train_sniffy/classifier2/vanilla_finetune/all_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --finetune_edpose \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params"
 
-"python  main.py  --seperate_classifier --classifier_type full --config_file config/classifier.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
+"python  main.py --num_classes 7  --seperate_classifier --classifier_type full --config_file config/classifier.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
     --output_dir logs/train_sniffy/classifier2/deformable_finetune/all_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --classifier_use_deformable \
     --finetune_edpose \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params"
 
-"python  main.py  --seperate_classifier --classifier_type full --config_file config/classifier.cfg.py --edpose_model_path logs/train_sniffy/gestures_allclasses_coco_pretrained_r50/checkpoint.pth \
+"python  main.py --num_classes 7  --seperate_classifier --classifier_type full --config_file config/classifier.cfg.py --edpose_model_path logs/train_sniffy_old/gestures_persononly_coco_pretrained_r50/checkpoint.pth \
     --output_dir logs/train_sniffy/classifier2/deformable_nofinetune/all_edpose/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --classifier_use_deformable \
+    --edpose_finetune_ignore class_embed. \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params"
 
-"python  main.py  --seperate_classifier --classifier_type full --config_file config/classifier.cfg.py --edpose_model_path logs/train_sniffy/gestures_allclasses_coco_pretrained_r50/checkpoint.pth \
+"python  main.py --num_classes 7  --seperate_classifier --classifier_type full --config_file config/classifier.cfg.py --edpose_model_path logs/train_sniffy_old/gestures_persononly_coco_pretrained_r50/checkpoint.pth \
     --output_dir logs/train_sniffy/classifier2/deformable_finetune/all_edpose/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --finetune_edpose \
+    --edpose_finetune_ignore class_embed. \
     --classifier_use_deformable \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params" 
 
-"python  main.py  --seperate_classifier --classifier_type full --config_file config/classifier.cfg.py --edpose_model_path logs/train_sniffy/gestures_allclasses_coco_pretrained_r50/checkpoint.pth \
+"python  main.py --num_classes 7  --seperate_classifier --classifier_type full --config_file config/classifier.cfg.py --edpose_model_path logs/train_sniffy_old/gestures_persononly_coco_pretrained_r50/checkpoint.pth \
     --output_dir logs/train_sniffy/classifier2/vanilla_nofinetune/all_edpose/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --dataset_file=coco \
+    --edpose_finetune_ignore class_embed. \
     --classifier_decoder_layers=2 --find_unused_params"
 
-"python  main.py  --seperate_classifier --classifier_type full --config_file config/classifier.cfg.py --edpose_model_path logs/train_sniffy/gestures_allclasses_coco_pretrained_r50/checkpoint.pth \
+"python  main.py --num_classes 7  --seperate_classifier --classifier_type full --config_file config/classifier.cfg.py --edpose_model_path logs/train_sniffy_old/gestures_persononly_coco_pretrained_r50/checkpoint.pth \
     --output_dir logs/train_sniffy/classifier2/vanilla_finetune/all_edpose/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --finetune_edpose \
+    --edpose_finetune_ignore class_embed. \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params"
 )

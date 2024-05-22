@@ -37,6 +37,7 @@ def get_args_parser():
     parser.add_argument('--coco_path', type=str, default=None)
     parser.add_argument('--remove_difficult', action='store_true')
     parser.add_argument('--fix_size', action='store_true')
+    parser.add_argument('--sanity', action='store_true')
 
 
     # training parameters
@@ -61,7 +62,8 @@ def get_args_parser():
     parser.add_argument('--dec_layers', default=6, type=int)
     parser.add_argument('--save_results', action='store_true')
     parser.add_argument('--save_log', action='store_true')
-
+    parser.add_argument('--num_classes', default=7, type=int,
+                        help='Number of classes. Default to 7 for sniffyArt dataset')
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
                         help='number of distributed processes')
@@ -295,7 +297,7 @@ def main(args):
             test_stats, coco_evaluator = evaluate(model, criterion, postprocessors,
                                                   data_loader_val, base_ds, device, args.output_dir, wo_class_error=wo_class_error, args=args)
             if args.output_dir:
-                utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
+                utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth", sanity=args.sanity)
 
             log_stats = {**{f'test_{k}': v for k, v in test_stats.items()} }
             MB = 1024.0 * 1024.0
@@ -311,6 +313,9 @@ def main(args):
     print("Start training")
     start_time = time.time()
     best_map_holder = BestMetricHolder(use_ema=args.use_ema)
+    if args.sanity:
+        args.epochs = args.start_epoch + 1
+
     print("----------- args epochs----------------", args.epochs)
     for epoch in range(args.start_epoch, args.epochs):
         epoch_start_time = time.time()
@@ -341,7 +346,7 @@ def main(args):
                     weights.update({
                         'ema_model': ema_m.module.state_dict(),
                     })
-                utils.save_on_master(weights, checkpoint_path)
+                utils.save_on_master(weights, checkpoint_path,sanity=args.sanity)
                 
         # eval
         test_stats, coco_evaluator = evaluate(
@@ -365,7 +370,7 @@ def main(args):
                 'lr_scheduler': lr_scheduler.state_dict(),
                 'epoch': epoch,
                 'args': args,
-            }, checkpoint_path)
+            }, checkpoint_path, sanity=args.sanity)
         log_stats = {
             **{f'train_{k}': v for k, v in train_stats.items()},
             **{f'test_{k}': v for k, v in test_stats.items()},
@@ -395,7 +400,7 @@ def main(args):
                     'lr_scheduler': lr_scheduler.state_dict(),
                     'epoch': epoch,
                     'args': args,
-                }, checkpoint_path)
+                }, checkpoint_path, sanity=args.sanity)
         log_stats.update(best_map_holder.summary())
 
         ep_paras = {

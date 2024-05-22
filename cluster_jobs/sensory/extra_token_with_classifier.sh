@@ -17,7 +17,7 @@ WORK_DIR=/home/woody/iwi5/iwi5197h
 export PYTHONPATH=${venv}/bin/python 
 cd $WORK_DIR/ED-Pose-Gestures/
 #rm -rf slurm_logs/
-export EDPOSE_COCO_PATH=$WORK_DIR/coco_directory_gestures
+# export EDPOSE_COCO_PATH=$WORK_DIR/sensoryArt_coco
 ## create environment
 echo "creating environment"
 
@@ -30,7 +30,7 @@ source venv/bin/activate
 #################################################### pretrained on coco #############################################################
 
 # python main.py  --config_file config/edpose.cfg.py --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
-#     --output_dir logs/train/without_classifier_without_token/all_classes_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+#     --output_dir logs/train_sensory/without_classifier_without_token/all_classes_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
 #     --dataset_file=coco 
 #batch_size=4
 # WORK_DIR=/home/woody/iwi5/iwi5197h
@@ -38,63 +38,63 @@ source venv/bin/activate
 # export EDPOSE_COCO_PATH=$WORK_DIR/coco_directory_gestures
 
 commands=(
-"python  main.py  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
-    --output_dir logs/train/gestures_classifier_multiple/vanilla_cocopretrained_nd2/all_classes_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+"python  main.py --num_classes 17  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
+    --output_dir logs/train_sensory/gestures_classifier_multiple/vanilla_cocopretrained_nd2/all_classes_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --finetune_edpose \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params"
 
-"python  main.py  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
-    --output_dir logs/train/gestures_classifier_multiple/deformable_cocopretrained_nd2/all_classes_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+"python  main.py --num_classes 17  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
+    --output_dir logs/train_sensory/gestures_classifier_multiple/deformable_cocopretrained_nd2/all_classes_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --classifier_use_deformable \
     --finetune_edpose \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params"
 
-"python  main.py  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path logs/train/gestures_allclasses_coco_pretrained_r50/checkpoint.pth \
-    --output_dir logs/train/gestures_extratoken_multiple/deformable_nofinetune_nd2/all_classes_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+"python  main.py --num_classes 17  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path logs/train_sniffy_old/gestures_persononly_coco_pretrained_r50/checkpoint.pth \
+    --output_dir logs/train_sensory/gestures_extratoken_multiple/deformable_nofinetune_nd2/all_classes_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --classifier_use_deformable \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params"
 
-"python  main.py  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path logs/train/gestures_allclasses_coco_pretrained_r50/checkpoint.pth \
-    --output_dir logs/train/gestures_extratoken_multiple/deformable_finetune_nd2/all_classes_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+"python  main.py --num_classes 17  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path logs/train_sniffy_old/gestures_persononly_coco_pretrained_r50/checkpoint.pth \
+    --output_dir logs/train_sensory/gestures_extratoken_multiple/deformable_finetune_nd2/all_classes_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --finetune_edpose \
     --classifier_use_deformable \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params" 
 
-"python  main.py  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path logs/train/gestures_allclasses_coco_pretrained_r50/checkpoint.pth \
-    --output_dir logs/train/gestures_extratoken_multiple/vanilla_nofinetune_nd2/all_classes_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+"python  main.py --num_classes 17  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path logs/train_sniffy_old/gestures_persononly_coco_pretrained_r50/checkpoint.pth \
+    --output_dir logs/train_sensory/gestures_extratoken_multiple/vanilla_nofinetune_nd2/all_classes_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params"
 
-"python  main.py  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path logs/train/gestures_allclasses_coco_pretrained_r50/checkpoint.pth \
-    --output_dir logs/train/gestures_extratoken_multiple/vanilla_finetune_nd2/all_classes_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+"python  main.py --num_classes 17  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path logs/train_sniffy_old/gestures_persononly_coco_pretrained_r50/checkpoint.pth \
+    --output_dir logs/train_sensory/gestures_extratoken_multiple/vanilla_finetune_nd2/all_classes_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --finetune_edpose \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params"
 
-"python  main.py  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path logs/train/gestures_persononly_coco_pretrained_r50/checkpoint.pth --edpose_finetune_ignore class_embed. \
-    --output_dir logs/train/gestures_extratoken_multiple/deformable_nofinetune_nd2/person_only_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+"python  main.py --num_classes 17  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path logs/train_sniffy_old/gestures_persononly_coco_pretrained_r50/checkpoint.pth --edpose_finetune_ignore class_embed. \
+    --output_dir logs/train_sensory/gestures_extratoken_multiple/deformable_nofinetune_nd2/person_only_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --classifier_use_deformable \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params"
 
-"python  main.py  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path logs/train/gestures_persononly_coco_pretrained_r50/checkpoint.pth --edpose_finetune_ignore class_embed. \
-    --output_dir logs/train/gestures_extratoken_multiple/deformable_finetune_nd2/person_only_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+"python  main.py --num_classes 17  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path logs/train_sniffy_old/gestures_persononly_coco_pretrained_r50/checkpoint.pth --edpose_finetune_ignore class_embed. \
+    --output_dir logs/train_sensory/gestures_extratoken_multiple/deformable_finetune_nd2/person_only_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --finetune_edpose \
     --classifier_use_deformable \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params"
 
-"python  main.py  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path logs/train/gestures_persononly_coco_pretrained_r50/checkpoint.pth --edpose_finetune_ignore class_embed. \
-    --output_dir logs/train/gestures_extratoken_multiple/vanilla_nofinetune_nd2/person_only_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+"python  main.py --num_classes 17  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path logs/train_sniffy_old/gestures_persononly_coco_pretrained_r50/checkpoint.pth --edpose_finetune_ignore class_embed. \
+    --output_dir logs/train_sensory/gestures_extratoken_multiple/vanilla_nofinetune_nd2/person_only_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params"
 
-"python  main.py  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path logs/train/gestures_persononly_coco_pretrained_r50/checkpoint.pth --edpose_finetune_ignore class_embed. \
-    --output_dir logs/train/gestures_extratoken_multiple/vanilla_finetune_nd2/person_only_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
+"python  main.py --num_classes 17  --seperate_classifier --seperate_token_for_class --config_file config/classifier.cfg.py --edpose_model_path logs/train_sniffy_old/gestures_persononly_coco_pretrained_r50/checkpoint.pth --edpose_finetune_ignore class_embed. \
+    --output_dir logs/train_sensory/gestures_extratoken_multiple/vanilla_finetune_nd2/person_only_pretrained_r50_coco/ --options batch_size=4 epochs=20 lr_drop=6 num_body_points=17 backbone=resnet50 \
     --finetune_edpose \
     --dataset_file=coco \
     --classifier_decoder_layers=2 --find_unused_params"

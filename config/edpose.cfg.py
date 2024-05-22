@@ -1,5 +1,5 @@
 _base_ = ['coco_transformer.py']
-num_classes=7
+# num_classes=7 set by args
 lr = 0.0001
 param_dict_type = 'default'
 lr_backbone = 1e-05

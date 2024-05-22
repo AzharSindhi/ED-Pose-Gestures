@@ -3,7 +3,6 @@ data_aug_max_size = 1333
 data_aug_scales2_resize = [400, 500, 600]
 data_aug_scales2_crop = [384, 600]
 data_aug_scale_overlap = None
-num_classes = 7
 lr = 0.0001
 param_dict_type = 'default'
 lr_backbone = 1e-05
