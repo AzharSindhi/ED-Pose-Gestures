@@ -17,14 +17,17 @@ exclude_dirs = [
     "humanart_debug",
     "humanart_r50_gestures_persononly_old",
     "classi_token", 
-    "edpose",
-    "extratoken",
+    # "edpose",
+    # "extratoken",
     "classifier2",
+    "classifier1",
+    "edpose_nd8",
+    "edpose_original"
 ]
 key_mapping = {
     "test_coco_eval_bbox": "testAP"
 }
-mlflow.set_tracking_uri(uri="http://127.0.0.1:5000")   
+mlflow.set_tracking_uri(uri="http://127.0.0.1:5001")   
 
 def read_json_file(file_path):
     with open(file_path, 'r') as file:
@@ -32,7 +35,7 @@ def read_json_file(file_path):
     return data
 
 def read_metrics(path):
-    assert os.path.exists(path), "Metrics path not found"
+    assert os.path.exists(path), f"Metrics path {path} not found"
     data = []
     with open(path, 'r') as file:
         lines = file.read().strip().splitlines()
@@ -109,7 +112,7 @@ def log_all_info(log_dir):
  
 if __name__ == "__main__":
         # Start MLflow run
-    base_dir = "logs/train"
+    base_dir = "logs/train_sniffy"
     all_logs = os.listdir(base_dir)
 
     dirs_to_log = [logdir for logdir in all_logs if logdir not in exclude_dirs]
