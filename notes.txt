@@ -1,7 +1,4 @@
-vanilla works better than deformable
-vanilla and orig edpose with coco pretrained weights same results
-better results with finetuning with gesture one class weights
-deformable finetuned on edpose weights slightly better than original
-
-does the improvement in scores occurs because of increase in the capacity? to evalualte this, increase the number of human keypoint and box decoder layers
-and check the scores with original
+1. select one model (original edpose or one of the varients)
+2. set the mlflow logger to log during training
+3. any logging tool which sorts the experiments based on performance (does mlflow does that?)
+4. run the hyperparameter tuning with different combination of parameters: learning rate, schedulers, optimizers, more epochs, early stopping etc.
