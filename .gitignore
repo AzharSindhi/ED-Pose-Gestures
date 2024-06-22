@@ -149,7 +149,7 @@ dmypy.json
 *.tar.gz
 *.pth
 mlruns/
-mlruns_copy/
+mlruns_*/
 mlartifacts/
 # Lightning-Hydra-Template
 configs/local/default.yaml
