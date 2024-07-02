@@ -18,6 +18,7 @@ from .utils import PoseProjector, sigmoid_focal_loss, MLP
 from .postprocesses import PostProcess
 from .criterion import SetCriterion
 from ..registry import MODULE_BUILD_FUNCS
+import numpy as np
 
 class EDPose(nn.Module):
     def __init__(self, backbone, transformer, num_classes, num_queries, 
@@ -179,12 +180,25 @@ class EDPose(nn.Module):
             self.refpoint_embed = None
 
         self.seperate_token_for_class = int(seperate_token_for_class)
-        start = 1 + self.seperate_token_for_class
+        group_len = self.num_body_points + 1 + self.seperate_token_for_class
+        all_indices = np.arange(num_group*(group_len))
+        self.box_index = []
+        self.cls_index = []
+        if seperate_token_for_class:
+            self.cls_index = all_indices[1::group_len].tolist()
+            self.box_index = (self.cls_index - 1).tolist()
+        else:
+            self.cls_index = []
+            self.box_index = all_indices[0::group_len].tolist()
+        
         self.kpt_index = []
-        for i in range(self.num_group):
-            self.kpt_index.extend(range(start, start + self.num_body_points))
-            start = start + self.num_body_points + 1 + self.seperate_token_for_class # excluding box and class token
+        for idx in all_indices:
+            if idx not in self.box_index and idx not in self.cls_index:
+                self.kpt_index.append(idx)
+            
         transformer.decoder.kpt_index = self.kpt_index
+        transformer.decoder.cls_index = self.cls_index
+        transformer.decoder.box_index = self.box_index
         transformer.decoder.seperate_token_for_class = self.seperate_token_for_class
         self._reset_parameters()
 
@@ -214,11 +228,12 @@ class EDPose(nn.Module):
                     attn_mask_infere[:, :, matchj, ej:] = True
             for match_x in range(self.num_group * (self.num_body_points+1 + self.seperate_token_for_class)):
                 if match_x % group_bbox_kpt==0:
-                    attn_mask_infere[:,:,match_x,self.kpt_index]=False
-                    if self.seperate_token_for_class:
-                        # class token will see both keypoints and boxes
-                        attn_mask_infere[:,:,match_x + 1, self.kpt_index]=False
-                        # attn_mask_infere[:,:,match_x + 1, 0::(self.num_body_points+2)]=False # can see all the boxes as well
+                    attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x,self.box_index]=False ## kpt index
+                    if self.seperate_token_for_class == 1:
+                        # class token will see boxes and vice versa
+                        attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x, self.box_index + 1]=False
+                        attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x + 1, self.box_index]=False
+                        attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x + 1, self.box_index + 1]=False
 
             attn_mask_infere = attn_mask_infere.flatten(0, 1)
             return None, None, None, attn_mask_infere,None
@@ -348,11 +363,12 @@ class EDPose(nn.Module):
             # box can see all the keypoints
             for match_x in range(self.num_group * (self.num_body_points+1 + self.seperate_token_for_class)):
                 if match_x % group_bbox_kpt==0:
-                    attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x,self.kpt_index]=False ## kpt index
+                    attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x,self.box_index]=False ## kpt index
                     if self.seperate_token_for_class == 1:
-                        # class token will see both keypoints and boxes
-                        attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x + 1, self.kpt_index]=False
-                        attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x + 1, 0::(self.num_body_points+2)]=False # can see all the boxes as well
+                        # class token will see boxes and vice versa
+                        attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x, self.box_index + 1]=False
+                        attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x + 1, self.box_index]=False
+                        attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x + 1, self.box_index + 1]=False
 
 
             for idx, (gt_boxes_i, gt_labels_i) in enumerate(zip(gt_boxes, gt_labels)):

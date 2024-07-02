@@ -1,6 +1,5 @@
 import argparse
 import datetime
-import gc
 import json
 import random
 import time
@@ -20,8 +19,14 @@ from engine import evaluate, train_one_epoch,inference_vis
 import models
 from util.config import DictAction, Config
 from util.utils import ModelEma, BestMetricHolder
-from dotenv import load_dotenv
-load_dotenv()
+import mlflow
+from pathlib import Path
+import time
+# from dotenv import load_dotenv
+# load_dotenv()
+
+torch.backends.cudnn.benchmark = False # for reproducibility
+torch.use_deterministic_algorithms(True, warn_only=True) # for reproducibility
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
@@ -31,6 +36,7 @@ def get_args_parser():
         action=DictAction,
         help='override some settings in the used config, the key-value pair '
         'in xxx=yyy format will be merged into config file.')
+
 
     # dataset parameters
     parser.add_argument('--dataset_file', default='coco')
@@ -62,8 +68,6 @@ def get_args_parser():
     parser.add_argument('--dec_layers', default=6, type=int)
     parser.add_argument('--save_results', action='store_true')
     parser.add_argument('--save_log', action='store_true')
-    parser.add_argument('--num_classes', default=7, type=int,
-                        help='Number of classes. Default to 7 for sniffyArt dataset')
     # distributed training parameters
     parser.add_argument('--world_size', default=1, type=int,
                         help='number of distributed processes')
@@ -77,10 +81,9 @@ def get_args_parser():
                         help="Train only person class")
     parser.add_argument('--no_dn', action='store_true',
                         help="Training using no denoising")
+    
+    # when there is a seperate classifier or token (modified)
     parser.add_argument("--seperate_token_for_class", action='store_true', help="fine tuning using seperate class token")
-
-    # when there is a seperate classifier
-
     parser.add_argument("--seperate_classifier", action='store_true', help="fine tuning using seperate decoder for classes")
     parser.add_argument('--classifier_type', type=str, choices=["full", "partial"], default="partial", help='specifiy the classifier type')
     parser.add_argument('--edpose_model_path', type=str, help='load edpose from other checkpoint')
@@ -93,28 +96,59 @@ def get_args_parser():
     return parser
 
 
+# mlflow.set_tracking_uri(uri="http://127.0.0.1:5002") 
+
+def set_mlflow_run(args, output_dir):
+
+    path_parts = output_dir.split("/")
+    if path_parts[-1] == "":
+        path_parts = path_parts[:-1]
+
+    experiment = path_parts[-3]
+    # mlflow.set_experiment(experiment)
+
+    is_finetuned = ["no_finetuned", "finetuned"]
+    run_name = f"{args.note}_{path_parts[-2]}_{path_parts[-1]}"
+    return experiment, run_name
+
+def log_metric_to_mlflow(metrics):
+    """
+    include_strings ignore if include all is true
+    """
+    include = ["lr", "class_error", "loss", "loss_ce", 
+               "loss_bbox", "loss_giou", "loss_keypoints", 
+               "loss_oks", "coco_eval_bbox", 
+               "coco_eval_keypoints_detr"]
+    
+    timenow = time.time()
+    for key, value in metrics.items():
+        if "_".join(key.split("_")[1:]) in include:
+            if isinstance(value, list):
+                [mlflow.log_metric(f"{key}_{i}", round(float(v), 2)) for i, v in enumerate(value)]
+            
+            else:
+                if "lr" not in key:
+                    value = round(float(value), 2)
+                mlflow.log_metric(key, value)
+    
+    print("-------logging takes:-----------", time.time() - timenow)
+
 def build_model_main(args):
+    args.classifier_use_deformable = False
     from models.registry import MODULE_BUILD_FUNCS
-    assert args.modelname in MODULE_BUILD_FUNCS._module_dict, f"{args.modelname} not found on registery"
+    assert args.modelname in MODULE_BUILD_FUNCS._module_dict
     build_func = MODULE_BUILD_FUNCS.get(args.modelname)
     model, criterion, postprocessors = build_func(args)
     return model, criterion, postprocessors
 
+
 def main(args):
-    # load_dotenv()
-    # args.dataset_file = "coco"
-    # args.output_dir = "logs/train/humanart_r50/"
-    os.makedirs(args.output_dir, exist_ok=True)
-    # args.pretrain_model_path = "./models/edpose_r50_humanart.pth"
-    # args.config_file = "config/edpose.cfg.py"
-    # args.batch_size = 1
-    # args.num_body_points = 17
-    # args.backbone = "resnet50"
-    # args.options = None
-    args.distributed = False
     # utils.init_distributed_mode(args)
+    time.sleep(np.random.randint(1, 5)) # to avoid multiple processes writing to the same file
+    
     print("Loading config file from {}".format(args.config_file))
-    time.sleep(args.rank * 0.02)
+    output_dir_path = args.output_dir
+    # rest of the code...
     cfg = Config.fromfile(args.config_file)
     if args.options is not None:
         cfg.merge_from_dict(args.options)
@@ -145,7 +179,7 @@ def main(args):
         args.humanart_path = os.environ.get("EDPOSE_HumanArt_PATH")
 
     # setup logger
-    # os.makedirs(args.output_dir, exist_ok=True)
+    os.makedirs(args.output_dir, exist_ok=True)
     logger = setup_logger(output=os.path.join(args.output_dir, 'info.txt'), distributed_rank=args.rank, color=False, name="detr")
     logger.info("git:\n  {}\n".format(utils.get_sha()))
     logger.info("Command: "+' '.join(sys.argv))
@@ -162,22 +196,15 @@ def main(args):
 
     if args.frozen_weights is not None:
         assert args.masks, "Frozen training is meant for segmentation only"
-
-    if args.person_only:
-        args.num_classes = 1
-    if args.no_dn:
-        args.use_dn = False
-
     print(args)
+
     device = torch.device(args.device)
 
     # fix the seed for reproducibility
-    seed = args.seed + utils.get_rank()
+    seed = args.seed #+ utils.get_rank()
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
-    if args.seperate_classifier:
-        args.modelname = "classifier"
 
     # build model
     model, criterion, postprocessors = build_model_main(args)
@@ -192,6 +219,7 @@ def main(args):
 
 
     model_without_ddp = model
+    args.distributed = False
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=args.find_unused_params)
         model_without_ddp = model.module
@@ -206,13 +234,17 @@ def main(args):
 
     dataset_train = build_dataset(image_set='train', args=args)
     dataset_val = build_dataset(image_set='val', args=args)
+    dataset_test = build_dataset(image_set='test', args=args)
+
 
     if args.distributed:
         sampler_train = DistributedSampler(dataset_train)
         sampler_val = DistributedSampler(dataset_val, shuffle=False)
+        sampler_test = DistributedSampler(dataset_test, shuffle=False)
     else:
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
         sampler_val = torch.utils.data.SequentialSampler(dataset_val)
+        sampler_test = torch.utils.data.SequentialSampler(dataset_test)
 
     batch_sampler_train = torch.utils.data.BatchSampler(
         sampler_train, args.batch_size, drop_last=True)
@@ -220,6 +252,8 @@ def main(args):
     data_loader_train = DataLoader(dataset_train, batch_sampler=batch_sampler_train,
                                    collate_fn=utils.collate_fn, num_workers=args.num_workers)
     data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
+                                 drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
+    data_loader_test = DataLoader(dataset_test, args.batch_size, sampler=sampler_test,
                                  drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
 
     if args.onecyclelr:
@@ -238,6 +272,7 @@ def main(args):
         model_without_ddp.detr.load_state_dict(checkpoint['model'])
 
     output_dir = Path(args.output_dir)
+    args.output_dir = ""
     if os.path.exists(os.path.join(args.output_dir, 'checkpoint.pth')):
         args.resume = os.path.join(args.output_dir, 'checkpoint.pth')
     if args.resume:
@@ -294,151 +329,134 @@ def main(args):
 
         else:
             os.environ['EVAL_FLAG'] = 'TRUE'
-            test_stats, coco_evaluator = evaluate(model, criterion, postprocessors,
+            val_stats, val_coco_evaluator = evaluate(model, criterion, postprocessors,
                                                   data_loader_val, base_ds, device, args.output_dir, wo_class_error=wo_class_error, args=args)
             if args.output_dir:
-                utils.save_on_master(coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth", sanity=args.sanity)
+                utils.save_on_master(val_coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth", sanity=args.sanity)
 
-            log_stats = {**{f'test_{k}': v for k, v in test_stats.items()} }
-            MB = 1024.0 * 1024.0
-            GB = 1024.0 * MB
-            memory=torch.cuda.max_memory_allocated()
-            log_stats['memory (MB)'] = memory / MB
-            log_stats['memory (GB)'] = memory / GB
+            log_stats = {**{f'test_{k}': v for k, v in val_stats.items()} }
             if args.output_dir and utils.is_main_process():
                 with (output_dir / "log.txt").open("a") as f:
                     f.write(json.dumps(log_stats) + "\n")
             return
 
+    args.optimizer = str(optimizer)
+    experiment, run_name = set_mlflow_run(args, output_dir_path)
     print("Start training")
     start_time = time.time()
     best_map_holder = BestMetricHolder(use_ema=args.use_ema)
-    if args.sanity:
-        args.epochs = args.start_epoch + 1
+    mlflow.set_experiment(experiment)
+    with mlflow.start_run(run_name=run_name):
+        # mlflow.set_tag("mlflow.runName", f"{run_name}")
+        mlflow.log_params(vars(args))
+        for epoch in range(args.start_epoch, args.epochs):
+            epoch_start_time = time.time()
+            if args.distributed:
+                sampler_train.set_epoch(epoch)
+            train_stats = train_one_epoch(
+                model, criterion, data_loader_train, optimizer, device, epoch,
+                args.clip_max_norm, wo_class_error=wo_class_error, lr_scheduler=lr_scheduler, args=args, logger=(logger if args.save_log else None), ema_m=ema_m)
+            if args.output_dir:
+                checkpoint_paths = [output_dir / 'checkpoint.pth']
 
-    print("----------- args epochs----------------", args.epochs)
-    for epoch in range(args.start_epoch, args.epochs):
-        epoch_start_time = time.time()
-        if args.distributed:
-            sampler_train.set_epoch(epoch)
-        train_stats = train_one_epoch(
-            model, criterion, data_loader_train, optimizer, device, epoch,
-            args.clip_max_norm, wo_class_error=wo_class_error, lr_scheduler=lr_scheduler, args=args, logger=(logger if args.save_log else None), ema_m=ema_m)
-        if args.output_dir:
-            checkpoint_paths = [output_dir / 'checkpoint.pth']
-
-        if not args.onecyclelr:
-            lr_scheduler.step()
-        if args.output_dir:
-            checkpoint_paths = [output_dir / 'checkpoint.pth']
-            # extra checkpoint before LR drop and every 100 epochs
-            if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % args.save_checkpoint_interval == 0:
-                checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
-            for checkpoint_path in checkpoint_paths:
-                weights = {
+            if not args.onecyclelr:
+                lr_scheduler.step()
+            if args.output_dir:
+                checkpoint_paths = [output_dir / 'checkpoint.pth']
+                # extra checkpoint before LR drop and every 100 epochs
+                if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % args.save_checkpoint_interval == 0:
+                    checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
+                for checkpoint_path in checkpoint_paths:
+                    weights = {
+                        'model': model_without_ddp.state_dict(),
+                        'optimizer': optimizer.state_dict(),
+                        'lr_scheduler': lr_scheduler.state_dict(),
+                        'epoch': epoch,
+                        'args': args,
+                    }
+                    if args.use_ema:
+                        weights.update({
+                            'ema_model': ema_m.module.state_dict(),
+                        })
+                    utils.save_on_master(weights, checkpoint_path, sanity=args.sanity)
+                    
+            # val
+            val_stats, val_coco_evaluator = evaluate(
+                model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
+                wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None)
+            )
+            #test
+            test_stats, test_coco_evaluator = evaluate(
+                model, criterion, postprocessors, data_loader_test, base_ds, device, args.output_dir,
+                wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None),
+                                                                  img_set="test"
+            )
+            map_regular = val_stats["coco_eval_keypoints_detr"][0]
+            _isbest = best_map_holder.update(map_regular, epoch, is_ema=False)
+            if _isbest:
+                checkpoint_path = output_dir / 'checkpoint_best_regular.pth'
+                utils.save_on_master({
                     'model': model_without_ddp.state_dict(),
                     'optimizer': optimizer.state_dict(),
                     'lr_scheduler': lr_scheduler.state_dict(),
                     'epoch': epoch,
                     'args': args,
-                }
-                if args.use_ema:
-                    weights.update({
-                        'ema_model': ema_m.module.state_dict(),
-                    })
-                utils.save_on_master(weights, checkpoint_path,sanity=args.sanity)
-                
-        # eval
-        test_stats, coco_evaluator = evaluate(
-            model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
-            wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None)
-        )
-        # save coco evaluation results as text file
-        with open(os.path.join(output_dir, "val_coco_results_last.txt"), "w") as f:
-            f.write(coco_evaluator.summarize())
-        map_regular = test_stats["coco_eval_keypoints_detr"][0]
-        _isbest = best_map_holder.update(map_regular, epoch, is_ema=False)
-        if _isbest:
-            # save coco evaluation results as text file
-            with open(os.path.join(output_dir, "val_coco_results_best.txt"), "w") as f:
-                f.write(coco_evaluator.summarize())
-
-            checkpoint_path = output_dir / 'checkpoint_best_regular.pth'
-            utils.save_on_master({
-                'model': model_without_ddp.state_dict(),
-                'optimizer': optimizer.state_dict(),
-                'lr_scheduler': lr_scheduler.state_dict(),
-                'epoch': epoch,
-                'args': args,
-            }, checkpoint_path, sanity=args.sanity)
-        log_stats = {
-            **{f'train_{k}': v for k, v in train_stats.items()},
-            **{f'test_{k}': v for k, v in test_stats.items()},
-        }
-
-        # eval ema
-        if args.use_ema:
-            ema_test_stats, ema_coco_evaluator = evaluate(
-                ema_m.module, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
-                wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None)
-            )
-            # save coco evaluation results as text file
-            with open(os.path.join(output_dir, "ema_val_coco_results_last.txt"), "w") as f:
-                f.write(ema_coco_evaluator.summarize())
-
-            log_stats.update({f'ema_test_{k}': v for k,v in ema_test_stats.items()})
-            map_ema = ema_test_stats['coco_eval_keypoints_detr'][0]
-            _isbest = best_map_holder.update(map_ema, epoch, is_ema=True)
-            if _isbest:
-                # save coco evaluation results as text file
-                with open(os.path.join(output_dir, "ema_val_coco_results_best.txt"), "w") as f:
-                    f.write(ema_coco_evaluator.summarize())
-                checkpoint_path = output_dir / 'checkpoint_best_ema.pth'
-                utils.save_on_master({
-                    'model': ema_m.module.state_dict(),
-                    'optimizer': optimizer.state_dict(),
-                    'lr_scheduler': lr_scheduler.state_dict(),
-                    'epoch': epoch,
-                    'args': args,
                 }, checkpoint_path, sanity=args.sanity)
-        log_stats.update(best_map_holder.summary())
-
-        ep_paras = {
-                'epoch': epoch,
-                'n_parameters': n_parameters
+            log_stats = {
+                **{f'train_{k}': v for k, v in train_stats.items()},
+                **{f'val_{k}': v for k, v in val_stats.items()},
+                **{f'test_{k}': v for k, v in test_stats.items()},
             }
-        log_stats.update(ep_paras)
-        try:
-            log_stats.update({'now_time': str(datetime.datetime.now())})
-        except:
-            pass
+            log_metric_to_mlflow(log_stats)
 
-        epoch_time = time.time() - epoch_start_time
-        epoch_time_str = str(datetime.timedelta(seconds=int(epoch_time)))
-        log_stats['epoch_time'] = epoch_time_str
-        MB = 1024.0 * 1024.0
-        GB = 1024.0 * MB
-        memory=torch.cuda.max_memory_allocated()
-        log_stats['memory (MB)'] = memory / MB
-        log_stats['memory (GB)'] = memory / GB
-        if args.output_dir and utils.is_main_process():
-            with (output_dir / "log.txt").open("a") as f:
-                f.write(json.dumps(log_stats) + "\n")
+            # eval ema
+            if args.use_ema:
+                ema_val_stats, ema_val_coco_evaluator = evaluate(
+                    ema_m.module, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
+                    wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None)
+                )
+                log_stats.update({f'ema_test_{k}': v for k,v in ema_val_stats.items()})
+                map_ema = ema_val_stats['coco_eval_keypoints_detr'][0]
+                _isbest = best_map_holder.update(map_ema, epoch, is_ema=True)
+                if _isbest:
+                    checkpoint_path = output_dir / 'checkpoint_best_ema.pth'
+                    utils.save_on_master({
+                        'model': ema_m.module.state_dict(),
+                        'optimizer': optimizer.state_dict(),
+                        'lr_scheduler': lr_scheduler.state_dict(),
+                        'epoch': epoch,
+                        'args': args,
+                    }, checkpoint_path, sanity=args.sanity)
+            log_stats.update(best_map_holder.summary())
 
-            # for evaluation logs
-            if coco_evaluator is not None:
-                (output_dir / 'eval').mkdir(exist_ok=True)
-                if "bbox" in coco_evaluator.coco_eval:
-                    filenames = ['latest.pth']
-                    if epoch % 50 == 0:
-                        filenames.append(f'{epoch:03}.pth')
-                    for name in filenames:
-                        torch.save(coco_evaluator.coco_eval["bbox"].eval,
-                                   output_dir / "eval" / name)
+            ep_paras = {
+                    'epoch': epoch,
+                    'n_parameters': n_parameters
+                }
+            log_stats.update(ep_paras)
+            try:
+                log_stats.update({'now_time': str(datetime.datetime.now())})
+            except:
+                pass
 
-        print(torch.cuda.memory_summary())
-        torch.cuda.empty_cache()
-        gc.collect()
+            epoch_time = time.time() - epoch_start_time
+            epoch_time_str = str(datetime.timedelta(seconds=int(epoch_time)))
+            log_stats['epoch_time'] = epoch_time_str
+
+            if args.output_dir and utils.is_main_process():
+                with (output_dir / "log.txt").open("a") as f:
+                    f.write(json.dumps(log_stats) + "\n")
+
+                # for evaluation logs
+                if val_coco_evaluator is not None:
+                    (output_dir / 'eval').mkdir(exist_ok=True)
+                    if "bbox" in val_coco_evaluator.coco_eval:
+                        filenames = ['latest.pth']
+                        if epoch % 50 == 0:
+                            filenames.append(f'{epoch:03}.pth')
+                        for name in filenames:
+                            torch.save(val_coco_evaluator.coco_eval["bbox"].eval,
+                                    output_dir / "eval" / name)
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))

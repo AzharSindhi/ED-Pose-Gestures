@@ -6,7 +6,7 @@ import torch
 from torch import nn
 
 from util.misc import NestedTensor
-
+import time
 
 class PositionEmbeddingSine(nn.Module):
     """
@@ -29,8 +29,11 @@ class PositionEmbeddingSine(nn.Module):
         mask = tensor_list.mask
         assert mask is not None
         not_mask = ~mask
-        y_embed = not_mask.cumsum(1, dtype=torch.float32)
-        x_embed = not_mask.cumsum(2, dtype=torch.float32)
+        not_mask_np = not_mask.cpu().numpy()
+        y_embed = torch.from_numpy(not_mask_np.cumsum(1)).to(not_mask.device, dtype=torch.float32)
+        x_embed = torch.from_numpy(not_mask_np.cumsum(2)).to(not_mask.device, dtype=torch.float32)
+        # y_embed = not_mask.cumsum(1, dtype=torch.float32)
+        # x_embed = not_mask.cumsum(2, dtype=torch.float32)
         if self.normalize:
             eps = 1e-6
             y_embed = y_embed / (y_embed[:, -1:, :] + eps) * self.scale
@@ -68,9 +71,20 @@ class PositionEmbeddingSineHW(nn.Module):
         mask = tensor_list.mask
         assert mask is not None
         not_mask = ~mask
-        y_embed = not_mask.cumsum(1, dtype=torch.float32)
-        x_embed = not_mask.cumsum(2, dtype=torch.float32)
-
+        # using numpy for reproducibility
+        # timenow = time.time()
+        not_mask_np = not_mask.cpu().numpy()
+        y_embed = torch.from_numpy(not_mask_np.cumsum(1)).to(not_mask.device, dtype=torch.float32)
+        x_embed = torch.from_numpy(not_mask_np.cumsum(2)).to(not_mask.device, dtype=torch.float32)
+        # print('numpy time:', time.time()-timenow)
+        # ## using torch
+        # timenow = time.time()
+        # y_embed = not_mask.cumsum(1, dtype=torch.float32)
+        # x_embed = not_mask.cumsum(2, dtype=torch.float32)
+        # print('torch time:', time.time()-timenow)
+        
+        # assert torch.equal(y_embed, y_embed_np)
+        # assert torch.equal(x_embed, x_embed_np) 
         # import ipdb; ipdb.set_trace()
 
         if self.normalize:

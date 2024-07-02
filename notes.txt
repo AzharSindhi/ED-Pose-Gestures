@@ -1,4 +1,4 @@
-1. select one model (original edpose or one of the varients)
+1. select one model (original edpose or one of the varients). Chose the model which needs fewer modifications (eg classifier 2)
 2. set the mlflow logger to log during training
 3. any logging tool which sorts the experiments based on performance (does mlflow does that?)
 4. run the hyperparameter tuning with different combination of parameters: learning rate, schedulers, optimizers, more epochs, early stopping etc.

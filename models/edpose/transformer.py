@@ -758,6 +758,7 @@ class TransformerDecoder(nn.Module):
                 # new_reference_points_for_class = torch.gather(new_reference_points[effect_num_dn:], 0, topk_proposals.unsqueeze(-1).repeat(1, 1, 4))
                 if self.seperate_token_for_class:
                     new_output_for_class = new_output_for_box + self.gesture_embed.weight[:, None, :] #torch.gather(output[effect_num_dn:], 0, topk_proposals.unsqueeze(-1).repeat(1, 1, self.d_model))
+                    # should i do clone detach? no i think
                 ###
                 # new output_for_class = torch.gather(output[effect_num_dn:], 0, topk_proposals.unsqueeze(-1).repeat(1, 1, self.d_model))
                 # query expansion for keypoints               
