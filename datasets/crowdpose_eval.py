@@ -10,7 +10,7 @@ class CocoEvaluator(object):
     def __init__(self, coco_gt, iou_types, useCats=True):
         assert isinstance(iou_types, (list, tuple))
         COCO_PATH = os.environ.get("EDPOSE_CrowdPose_PATH")
-        cocodir = COCO_PATH + '/json/crowdpose_valid.json'
+        cocodir = COCO_PATH + '/json/crowdpose_test.json'
         coco_gt = COCO(cocodir)
         self.coco_gt = coco_gt
 

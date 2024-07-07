@@ -18,7 +18,36 @@ from .utils import PoseProjector, sigmoid_focal_loss, MLP
 from .postprocesses import PostProcess
 from .criterion import SetCriterion
 from ..registry import MODULE_BUILD_FUNCS
-import numpy as np
+
+
+class MultiLabelEmbeddingModel(nn.Module):
+    def __init__(self, num_classes, hidden_dim):
+        super().__init__()
+        self.hidden_dim = hidden_dim
+        self.label_enc = nn.Embedding(num_classes + 1, hidden_dim) 
+
+    def forward(self, known_labels_expand):
+        if known_labels_expand.dim() == 2:
+            return self.label_enc(known_labels_expand)
+        
+        bs, num_instances, num_classes = known_labels_expand.shape 
+
+        # Initialize a tensor to hold the final embeddings for each label
+        aggregated_embeddings = torch.zeros(bs, num_instances, self.hidden_dim, device=known_labels_expand.device)
+
+        class_mask = known_labels_expand.unsqueeze(-1)
+        all_indices = torch.nonzero(class_mask == 1, as_tuple=False)[:, :3]
+
+        for i in range(bs):
+            batch_indices = all_indices[:, 0] == i
+            instance_indices = all_indices[batch_indices, 1]
+            class_indices = all_indices[batch_indices, 2]
+            class_embeddings = self.label_enc(class_indices)
+            # add these class_embeddings to the correcponding instance indices given by all_indices[:, 1]
+            aggregated_embeddings[i].scatter_add_(0, instance_indices.unsqueeze(-1).expand_as(class_embeddings), class_embeddings)
+            # batch_output.append(class_embeddings)
+
+        return aggregated_embeddings
 
 class EDPose(nn.Module):
     def __init__(self, backbone, transformer, num_classes, num_queries, 
@@ -53,7 +82,7 @@ class EDPose(nn.Module):
         self.hidden_dim = hidden_dim = transformer.d_model
         self.num_feature_levels = num_feature_levels
         self.nheads = nheads
-        self.label_enc = nn.Embedding(dn_labelbook_size + 1, hidden_dim)
+        self.label_enc = MultiLabelEmbeddingModel(num_classes, hidden_dim) #nn.Embedding(dn_labelbook_size + 1, hidden_dim)
         self.num_body_points = num_body_points
         self.num_box_decoder_layers = num_box_decoder_layers
 
@@ -308,10 +337,20 @@ class EDPose(nn.Module):
 
         # add noise
         if dn_label_noise_ratio > 0:
-            prob = torch.rand_like(knwon_labels_expand.float())
-            chosen_indice = prob < dn_label_noise_ratio
-            new_label = torch.randint_like(knwon_labels_expand[chosen_indice], 0, self.dn_labelbook_size)  # randomly put a new one here
-            knwon_labels_expand[chosen_indice] = new_label
+            prob = torch.rand_like(knwon_labels_expand.float()[..., 0])
+            chosen_indices = prob < dn_label_noise_ratio # select indices based on probabilities
+            new_labels = torch.zeros_like(knwon_labels_expand[chosen_indices])
+            row_indices = torch.arange(new_labels.size(0), device=device)
+
+            col_indices = torch.randint(0, self.num_classes, (new_labels.size(0),), device=device)
+            new_labels[row_indices, col_indices] = 1
+            # agin new labels (for multilabel)
+            col_indices = torch.randint(0, self.num_classes, (new_labels.size(0),), device=device)
+            new_labels[row_indices, col_indices] = 1
+            # now randomly replace some to zero (many are single labels as well)
+            col_indices = torch.randint(0, self.num_classes, (new_labels.size(0),), device=device)
+            new_labels[row_indices, col_indices] = 0
+            knwon_labels_expand[chosen_indices] = new_labels
 
         if dn_box_noise_scale > 0:
             diff = torch.zeros_like(knwon_boxes_expand)
@@ -508,7 +547,6 @@ class EDPose(nn.Module):
         # update keypoints boxes
         outputs_keypoints_list = []
         outputs_keypoints_hw = []
-
         for dec_lid, (layer_ref_sig, layer_hs) in enumerate(zip(reference[:-1], hs)):
             if dec_lid < self.num_box_decoder_layers:
                 assert isinstance(layer_hs, torch.Tensor)

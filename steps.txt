@@ -1,0 +1,10 @@
+add multilabel
+train on swin
+visualize predictions
+why always 50 predictions are returned? how os it handled
+
+evaluation metrics, f1-score on coco
+explore dn_label_noise_ratio
+
+did i solve the variablity issue, or the results consistant with lr 0.0001 and wd 0.01...
+is it also same results for my modified implementation,, if yes the i can train the modified versions safely

@@ -49,8 +49,16 @@ class HungarianMatcher(nn.Module):
         gamma = 2.0
         neg_cost_class = (1 - alpha) * (out_prob ** gamma) * (-(1 - out_prob + 1e-8).log())
         pos_cost_class = alpha * ((1 - out_prob) ** gamma) * (-(out_prob + 1e-8).log())
-        cost_class = pos_cost_class[:, tgt_ids] - neg_cost_class[:, tgt_ids]
+        # cost_class = pos_cost_class[:, tgt_ids] - neg_cost_class[:, tgt_ids]
 
+        # multilabel cost, Expand dimensions for broadcasting
+        N, C = out_prob.shape
+        M = tgt_ids.shape[0]
+        tgt_labels_expanded = tgt_ids.unsqueeze(0).expand(N, M, C)
+        pos_cost_class_expanded = pos_cost_class.unsqueeze(1).expand(N, M, C)
+        neg_cost_class_expanded = neg_cost_class.unsqueeze(1).expand(N, M, C)
+        # Calculate the cost class matrix
+        cost_class = (tgt_labels_expanded * pos_cost_class_expanded - tgt_labels_expanded * neg_cost_class_expanded).sum(-1)
         # Compute the L1 cost between boxes
         cost_bbox = torch.cdist(out_bbox, tgt_bbox, p=1)
 
@@ -123,3 +131,4 @@ def build_matcher(args):
         )
     else:
         raise NotImplementedError("Unknown args.matcher_type: {}".format(args.matcher_type))
+

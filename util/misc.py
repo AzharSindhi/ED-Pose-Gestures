@@ -456,8 +456,7 @@ def is_main_process():
 
 
 def save_on_master(*args, **kwargs):
-    if kwargs["sanity"]==False and is_main_process():
-        del kwargs["sanity"]
+    if is_main_process():
         torch.save(*args, **kwargs)
 
 

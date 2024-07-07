@@ -1,0 +1,2 @@
+/net/cluster/azhar/datasets/gestuers_keypoints_cmac/smell-gesture-recognition
+/net/cluster/azhar/datasets/SensoryGestureRecognition/data/sensoryArt_coco

@@ -11,7 +11,10 @@ from util import box_ops
 from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
                        accuracy, get_world_size, interpolate,
                        is_dist_avail_and_initialized, inverse_sigmoid)
+from torcheval.metrics.functional import multilabel_accuracy
+
 from .utils import PoseProjector, sigmoid_focal_loss, MLP,OKSLoss
+
 
 class SetCriterion(nn.Module):
     def __init__(self, num_classes, matcher, weight_dict, focal_alpha, losses, num_box_decoder_layers=2,num_body_points=17):
@@ -30,6 +33,8 @@ class SetCriterion(nn.Module):
                  eps=1e-6,
                  reduction='mean',
                  loss_weight=1.0)
+        # self.multilabel_accuracy = MultilabelAccuracy(criteria="exact_match")
+
     def loss_labels(self, outputs, targets, indices, num_boxes, log=True):
         """Classification loss (Binary focal loss)
         targets dicts must contain the key "labels" containing a tensor of dim [nb_target_boxes]
@@ -39,21 +44,23 @@ class SetCriterion(nn.Module):
         src_logits = outputs['pred_logits']
         idx = self._get_src_permutation_idx(indices)
         target_classes_o = torch.cat([t["labels"][J] for t, (_, J) in zip(targets, indices)])
-        target_classes = torch.full(src_logits.shape[:2], self.num_classes,
-                                    dtype=torch.int64, device=src_logits.device)
-        target_classes[idx] = target_classes_o
-
-        target_classes_onehot = torch.zeros([src_logits.shape[0], src_logits.shape[1], src_logits.shape[2]+1],
+        # target_classes = torch.full(src_logits.shape[:2], self.num_classes,
+        #                             dtype=torch.int64, device=src_logits.device)
+        target_classes_onehot = torch.zeros(src_logits.shape,
                                             dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
-        target_classes_onehot.scatter_(2, target_classes.unsqueeze(-1), 1)
+        target_classes_onehot[idx] = target_classes_o.float()
 
-        target_classes_onehot = target_classes_onehot[:,:,:-1]
+        # target_classes_onehot = torch.zeros([src_logits.shape[0], src_logits.shape[1], src_logits.shape[2]+1],
+        #                                     dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
+        # target_classes_onehot.scatter_(2, target_classes.unsqueeze(-1), 1)
+
+        # target_classes_onehot = target_classes_onehot[:,:,:-1]
         loss_ce = sigmoid_focal_loss(src_logits, target_classes_onehot, num_boxes, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
         losses = {'loss_ce': loss_ce}
 
         if log:
             # TODO this should probably be a separate loss, not hacked in this one here
-            losses['class_error'] = 100 - accuracy(src_logits[idx], target_classes_o)[0]
+            losses['class_error'] = 100 - multilabel_accuracy(F.sigmoid(src_logits[idx]), target_classes_o, criteria="exact_match").item()
         return losses
 
     @torch.no_grad()
@@ -324,13 +331,13 @@ class SetCriterion(nn.Module):
         """
         Input:
             - src_logits: bs, num_dn, num_classes
-            - tgt_labels: bs, num_dn
+            - tgt_labels: bs, num_dn, num_classes
 
         """
-        target_classes_onehot = torch.zeros([src_logits.shape[0], src_logits.shape[1], src_logits.shape[2] + 1],
-                                            dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
-        target_classes_onehot.scatter_(2, tgt_labels.unsqueeze(-1), 1)
-        target_classes_onehot = target_classes_onehot[:, :, :-1]
+        # target_classes_onehot = torch.zeros([src_logits.shape[0], src_logits.shape[1], src_logits.shape[2] + 1],
+        #                                     dtype=src_logits.dtype, layout=src_logits.layout, device=src_logits.device)
+        # target_classes_onehot.scatter_(2, tgt_labels.unsqueeze(-1), 1)
+        target_classes_onehot = tgt_labels.float() #target_classes_onehot[:, :, :-1]
         loss_ce = sigmoid_focal_loss(src_logits, target_classes_onehot, num_tgt, alpha=self.focal_alpha, gamma=2) * src_logits.shape[1]
         losses = {'dn_loss_ce': loss_ce}
 

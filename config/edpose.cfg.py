@@ -1,5 +1,5 @@
 _base_ = ['coco_transformer.py']
-# num_classes=7 set by args
+num_classes=17
 lr = 0.0001
 param_dict_type = 'default'
 lr_backbone = 1e-05
@@ -9,8 +9,8 @@ lr_linear_proj_mult = 0.1
 ddetr_lr_param = False
 batch_size = 2
 weight_decay = 0.0001
-epochs = 50
-lr_drop = 11
+epochs = 100
+lr_drop = 15
 save_checkpoint_interval = 100
 clip_max_norm = 0.1
 onecyclelr = False
@@ -30,6 +30,7 @@ pe_temperatureW = 20
 return_interm_indices = [1, 2, 3]
 backbone_freeze_keywords = None
 enc_layers = 6
+dec_layers = 6
 pre_norm = False
 dim_feedforward = 2048
 hidden_dim = 256
@@ -53,7 +54,7 @@ two_stage_learn_wh = False
 two_stage_default_hw = 0.05
 two_stage_keep_all_tokens = False
 rm_detach = None
-num_select = 50
+num_select = 100
 transformer_activation = 'relu'
 batch_norm_type = 'FrozenBatchNorm2d'
 
@@ -101,14 +102,13 @@ dn_labelbook_size = 100
 match_unstable_error = False
 
 # for ema
-use_ema = True
+use_ema = False
 ema_decay = 0.9997
 ema_epoch = 0
 
 cls_no_bias = False
 num_body_points = 17 # for coco
 num_group = 100
-# dec_layers = 6 set from args
 num_box_decoder_layers = 2
 no_mmpose_keypoint_evaluator = True
 strong_aug=False
