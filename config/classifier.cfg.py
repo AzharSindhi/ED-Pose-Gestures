@@ -1,5 +1,5 @@
 _base_ = ['coco_transformer.py']
-# num_classes=7 set by args
+num_classes=17 #set by args
 lr = 0.0001
 param_dict_type = 'default'
 lr_backbone = 1e-05
@@ -30,7 +30,7 @@ pe_temperatureW = 20
 return_interm_indices = [1, 2, 3]
 backbone_freeze_keywords = None
 enc_layers = 6
-# dec_layers = 6 set by args
+dec_layers = 6
 pre_norm = False
 dim_feedforward = 2048
 hidden_dim = 256
@@ -54,7 +54,7 @@ two_stage_learn_wh = False
 two_stage_default_hw = 0.05
 two_stage_keep_all_tokens = False
 rm_detach = None
-num_select = 50
+num_select = 100
 transformer_activation = 'relu'
 batch_norm_type = 'FrozenBatchNorm2d'
 

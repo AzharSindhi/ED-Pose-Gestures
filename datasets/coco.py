@@ -23,12 +23,17 @@ class CocoDetection(torch.utils.data.Dataset):
     def __init__(self, root_path, image_set, num_classes, transforms, return_masks):
         super(CocoDetection, self).__init__()
         self._transforms = transforms
-        self.prepare = ConvertCocoPolysToMask(return_masks, num_classes)
+        # self.prepare = ConvertCocoPolysToMask(return_masks, num_classes)
         self.Inference_Path = os.environ.get("Inference_Path")
 
         if image_set == "train":
             self.img_folder = root_path / "train2017"
             self.coco = COCO(root_path / "annotations/person_keypoints_train2017.json")
+            categories = self.coco.loadCats(self.coco.getCatIds())
+            sorted_categories = sorted(categories, key=lambda x: int(x['id']))
+            sorted_category_names = [cat['name'] for cat in sorted_categories]
+            self.prepare = ConvertCocoPolysToMask(sorted_category_names, return_masks, num_classes)
+
             imgIds = sorted(self.coco.getImgIds())
             self.all_imgIds = []
             for image_id in imgIds:
@@ -40,9 +45,26 @@ class CocoDetection(torch.utils.data.Dataset):
                 if sum(num_keypoints) == 0:
                     continue
                 self.all_imgIds.append(image_id)
+
         elif image_set == "val":
             self.img_folder = root_path / "val2017"
             self.coco = COCO(root_path / "annotations/person_keypoints_val2017.json")
+            categories = self.coco.loadCats(self.coco.getCatIds())
+            sorted_categories = sorted(categories, key=lambda x: int(x['id']))
+            sorted_category_names = [cat['name'] for cat in sorted_categories]
+            self.prepare = ConvertCocoPolysToMask(sorted_category_names, return_masks, num_classes)
+            imgIds = sorted(self.coco.getImgIds())
+            self.all_imgIds = []
+            for image_id in imgIds:
+                self.all_imgIds.append(image_id)
+        
+        elif image_set == "test":
+            self.img_folder = root_path / "test2017"
+            self.coco = COCO(root_path / "annotations/person_keypoints_test2017.json")
+            categories = self.coco.loadCats(self.coco.getCatIds())
+            sorted_categories = sorted(categories, key=lambda x: int(x['id']))
+            sorted_category_names = [cat['name'] for cat in sorted_categories]
+            self.prepare = ConvertCocoPolysToMask(sorted_category_names, return_masks, num_classes)
             imgIds = sorted(self.coco.getImgIds())
             self.all_imgIds = []
             for image_id in imgIds:
@@ -55,13 +77,6 @@ class CocoDetection(torch.utils.data.Dataset):
                     if file.endswith('.jpg') or file.endswith('.jpeg') or file.endswith('.png'):
                         self.all_file.append(file)
                         self.all_imgIds.append(os.path.splitext(file)[0])
-            else:
-                self.img_folder = root_path / "test2017"
-                self.coco = COCO(root_path / "annotations/person_keypoints_test2017.json")
-                imgIds = sorted(self.coco.getImgIds())
-                self.all_imgIds = []
-                for image_id in imgIds:
-                    self.all_imgIds.append(image_id)
 
     def __len__(self):
         return len(self.all_imgIds)
@@ -106,9 +121,10 @@ def convert_coco_poly_to_mask(segmentations, height, width):
 
 
 class ConvertCocoPolysToMask(object):
-    def __init__(self, return_masks=False, num_classes=17):
+    def __init__(self, category_names, return_masks=False, num_classes=17):
         self.return_masks = return_masks
         self.num_classes = num_classes
+        self.category_names = category_names
 
     def __call__(self, image, target):
         w, h = image.size
@@ -130,9 +146,20 @@ class ConvertCocoPolysToMask(object):
         boxes[:, 2:] += boxes[:, :2]
         boxes[:, 0::2].clamp_(min=0, max=w)
         boxes[:, 1::2].clamp_(min=0, max=h)
-        classes = [obj["category_id"] for obj in anno]
-        if self.num_classes == 1:
-            classes = [0] * len(anno)
+        # get the class labels from gestures key for multilabel classification
+        classes = [] #[obj["category_id"] for obj in anno]
+        for obj in anno:
+            cls_onehot = [0] * self.num_classes
+            gestures_list = obj["gestures"]
+            if gestures_list == []:
+                cls_onehot[self.num_classes - 1] = 1
+            else:
+                for gesture in gestures_list:
+                    cls_onehot[self.category_names.index(gesture)] = 1
+            classes.append(cls_onehot)
+        
+        # if self.num_classes == 1:
+        #     classes = [0] * len(anno)
             
         classes = torch.tensor(classes, dtype=torch.int64)
         if self.return_masks:

@@ -1,0 +1,4 @@
+change number of queries propotional to num classes (incase of training from scratch)
+learning rate and learning rate drop
+eos_coef ??
+gradient clipping on?

@@ -155,7 +155,8 @@ def build_backbone(args):
                     if keyword in name:
                         parameter.requires_grad_(False)
                         break
-        pretrained_dir=os.environ.get("pretrain_model_path")
+        pretrained_path=os.environ.get("pretrain_model_path")
+        # pretrained_dir = os.path.dirname(pretrained_path)
         # import pdb
         # pdb.set_trace()
         PTDICT = {
@@ -163,7 +164,7 @@ def build_backbone(args):
             'swin_B_384_22k': 'swin_base_patch4_window12_384.pth',
             'swin_L_384_22k': 'swin_large_patch4_window12_384_22k.pth',
         }
-        pretrainedpath = os.path.join(pretrained_dir, PTDICT[args.backbone]) 
+        pretrainedpath = os.path.join(pretrained_path, PTDICT[args.backbone]) 
         checkpoint = torch.load(pretrainedpath, map_location='cpu')['model']
         from collections import OrderedDict
         def key_select_function(keyname):

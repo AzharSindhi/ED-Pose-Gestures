@@ -33,8 +33,10 @@ class PostProcess(nn.Module):
         scores = topk_values
 
         # bbox
-        topk_boxes = topk_indexes // out_logits.shape[2]
-        labels = topk_indexes % out_logits.shape[2]
+        topk_boxes = topk_indexes // out_logits.shape[2] # row indices
+        labels = topk_indexes % out_logits.shape[2] # maximum column index across every row (class label)
+
+
         if not_to_xyxy:
             boxes = out_bbox
         else:
@@ -64,8 +66,9 @@ class PostProcess(nn.Module):
         keypoints_res[..., 0::3] = Z_pred[..., 0::2]
         keypoints_res[..., 1::3] = Z_pred[..., 1::2]
         keypoints_res[..., 2::3] = V_pred[..., 0::1]
-
-
+        
+        # multilabels = torch.zeros(out_logits.shape[0], num_select, out_logits.shape[2], device=out_logits.device)
+        # multilabels.scatter_(2, labels.view(*labels.shape, 1), 1)
         if self.nms_iou_threshold > 0:
             raise NotImplementedError
             item_indices = [nms(b, s, iou_threshold=self.nms_iou_threshold) for b,s in zip(boxes, scores)]

@@ -65,7 +65,7 @@ def get_args_parser():
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--find_unused_params', action='store_true')
     parser.add_argument('--decoder_box_layers', default=2, type=int)
-    parser.add_argument('--dec_layers', default=6, type=int)
+    # parser.add_argument('--dec_layers', default=6, type=int)
     parser.add_argument('--save_results', action='store_true')
     parser.add_argument('--save_log', action='store_true')
     # distributed training parameters
@@ -332,7 +332,7 @@ def main(args):
             val_stats, val_coco_evaluator = evaluate(model, criterion, postprocessors,
                                                   data_loader_val, base_ds, device, args.output_dir, wo_class_error=wo_class_error, args=args)
             if args.output_dir:
-                utils.save_on_master(val_coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth", sanity=args.sanity)
+                utils.save_on_master(val_coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
 
             log_stats = {**{f'test_{k}': v for k, v in val_stats.items()} }
             if args.output_dir and utils.is_main_process():
@@ -378,7 +378,7 @@ def main(args):
                         weights.update({
                             'ema_model': ema_m.module.state_dict(),
                         })
-                    utils.save_on_master(weights, checkpoint_path, sanity=args.sanity)
+                    utils.save_on_master(weights, checkpoint_path)
                     
             # val
             val_stats, val_coco_evaluator = evaluate(
@@ -401,7 +401,7 @@ def main(args):
                     'lr_scheduler': lr_scheduler.state_dict(),
                     'epoch': epoch,
                     'args': args,
-                }, checkpoint_path, sanity=args.sanity)
+                }, checkpoint_path)
             log_stats = {
                 **{f'train_{k}': v for k, v in train_stats.items()},
                 **{f'val_{k}': v for k, v in val_stats.items()},
@@ -426,7 +426,7 @@ def main(args):
                         'lr_scheduler': lr_scheduler.state_dict(),
                         'epoch': epoch,
                         'args': args,
-                    }, checkpoint_path, sanity=args.sanity)
+                    }, checkpoint_path)
             log_stats.update(best_map_holder.summary())
 
             ep_paras = {
