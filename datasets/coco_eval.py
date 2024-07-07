@@ -9,10 +9,10 @@ import pycocotools.mask as mask_util
 from util.misc import all_gather
 
 class CocoEvaluator(object):
-    def __init__(self, coco_gt, iou_types, useCats=True):
+    def __init__(self, img_set, iou_types, useCats=True):
         assert isinstance(iou_types, (list, tuple))
         COCO_PATH = os.environ.get("EDPOSE_COCO_PATH")
-        cocodir = COCO_PATH + '/annotations/person_keypoints_val2017.json'
+        cocodir = COCO_PATH + f'/annotations/person_keypoints_{img_set}2017.json'
         coco_gt = COCO(cocodir)
         self.coco_gt = coco_gt
 
@@ -79,12 +79,9 @@ class CocoEvaluator(object):
             coco_eval.accumulate()
 
     def summarize(self):
-        final_result_string = ""
         for iou_type, coco_eval in self.coco_eval.items():
             print("IoU metric: {}".format(iou_type))
             coco_eval.summarize()
-            final_result_string += "\nIoU metric: {}".format(iou_type) + "\n" + coco_eval.summary_string
-        return final_result_string
 
     def prepare(self, predictions, iou_type):
         if iou_type == "bbox":

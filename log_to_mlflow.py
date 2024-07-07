@@ -27,7 +27,7 @@ exclude_dirs = [
 key_mapping = {
     "test_coco_eval_bbox": "testAP"
 }
-mlflow.set_tracking_uri(uri="http://127.0.0.1:5001")   
+mlflow.set_tracking_uri(uri="http://127.0.0.1:5002")   
 
 def read_json_file(file_path):
     with open(file_path, 'r') as file:
@@ -83,7 +83,7 @@ def log_artificats(dir_path):
 def log_run(dir_path, experiment_name, run_name):
     run_name = experiment_name + "-" + run_name.split("_")[0] + "-" + run_name.split("_")[-1]
     model_type = dir_path.split("/")[-3]
-    mlflow.set_experiment(model_type)
+    mlflow.set_experiment("sensoryArt_runs")
     with mlflow.start_run():
         mlflow.set_tag("mlflow.runName", f"{model_type}_{run_name}")
         print("started mlflow")
@@ -112,10 +112,10 @@ def log_all_info(log_dir):
  
 if __name__ == "__main__":
         # Start MLflow run
-    base_dir = "logs/train_sniffy"
+    base_dir = "logs/train_sensory_selected_new"
     all_logs = os.listdir(base_dir)
 
-    dirs_to_log = [logdir for logdir in all_logs if logdir not in exclude_dirs]
+    dirs_to_log = all_logs #[logdir for logdir in all_logs if logdir not in exclude_dirs]
     print(dirs_to_log)
 
     for dir in tqdm(dirs_to_log):

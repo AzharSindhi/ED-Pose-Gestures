@@ -20,11 +20,12 @@ from datasets.data_util import preparing_dataset
 __all__ = ['build']
 
 class CocoDetection(torch.utils.data.Dataset):
-    def __init__(self, root_path, num_classes, image_set, transforms, return_masks):
+    def __init__(self, root_path, image_set, num_classes, transforms, return_masks):
         super(CocoDetection, self).__init__()
         self._transforms = transforms
-        self.prepare = ConvertCocoPolysToMask(num_classes, return_masks)
-        self.Inference_Path = None
+        self.prepare = ConvertCocoPolysToMask(return_masks, num_classes)
+        self.Inference_Path = os.environ.get("Inference_Path")
+
         if image_set == "train":
             self.img_folder = root_path / "train2017"
             self.coco = COCO(root_path / "annotations/person_keypoints_train2017.json")
@@ -39,8 +40,14 @@ class CocoDetection(torch.utils.data.Dataset):
                 if sum(num_keypoints) == 0:
                     continue
                 self.all_imgIds.append(image_id)
+        elif image_set == "val":
+            self.img_folder = root_path / "val2017"
+            self.coco = COCO(root_path / "annotations/person_keypoints_val2017.json")
+            imgIds = sorted(self.coco.getImgIds())
+            self.all_imgIds = []
+            for image_id in imgIds:
+                self.all_imgIds.append(image_id)
         else:
-            # self.Inference_Path = None #os.environ.get("Inference_Path")
             if self.Inference_Path:
                 self.all_file = []
                 self.all_imgIds = []
@@ -49,8 +56,8 @@ class CocoDetection(torch.utils.data.Dataset):
                         self.all_file.append(file)
                         self.all_imgIds.append(os.path.splitext(file)[0])
             else:
-                self.img_folder = root_path / "val2017"
-                self.coco = COCO(root_path / "annotations/person_keypoints_val2017.json")
+                self.img_folder = root_path / "test2017"
+                self.coco = COCO(root_path / "annotations/person_keypoints_test2017.json")
                 imgIds = sorted(self.coco.getImgIds())
                 self.all_imgIds = []
                 for image_id in imgIds:
@@ -99,11 +106,9 @@ def convert_coco_poly_to_mask(segmentations, height, width):
 
 
 class ConvertCocoPolysToMask(object):
-    def __init__(self, num_classes, return_masks=False):
+    def __init__(self, return_masks=False, num_classes=17):
         self.return_masks = return_masks
         self.num_classes = num_classes
-        self.gestures = ['None', 'cooking', 'drinking', 'drinking,smoking', 'holding the nose', 'smoking', 'sniffing']
-
 
     def __call__(self, image, target):
         w, h = image.size
@@ -125,10 +130,10 @@ class ConvertCocoPolysToMask(object):
         boxes[:, 2:] += boxes[:, :2]
         boxes[:, 0::2].clamp_(min=0, max=w)
         boxes[:, 1::2].clamp_(min=0, max=h)
-        if self.num_classes > 1:
-            classes = [obj["category_id"] for obj in anno]
-        else:
+        classes = [obj["category_id"] for obj in anno]
+        if self.num_classes == 1:
             classes = [0] * len(anno)
+            
         classes = torch.tensor(classes, dtype=torch.int64)
         if self.return_masks:
             segmentations = [obj["segmentation"] for obj in anno]
@@ -223,7 +228,7 @@ def make_coco_transforms(image_set, fix_size=False, strong_aug=False, args=None)
 
 def build(image_set, args):
     root = Path(args.coco_path)
-    dataset = CocoDetection(root, args.num_classes, image_set, transforms=make_coco_transforms(image_set, strong_aug=args.strong_aug),
+    dataset = CocoDetection(root, image_set, args.num_classes, transforms=make_coco_transforms(image_set, strong_aug=args.strong_aug),
                             return_masks=args.masks)
 
     return dataset
