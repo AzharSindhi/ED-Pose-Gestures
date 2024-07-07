@@ -185,11 +185,11 @@ class EDPose(nn.Module):
         self.box_index = []
         self.cls_index = []
         if seperate_token_for_class:
-            self.cls_index = all_indices[1::group_len].tolist()
-            self.box_index = (self.cls_index - 1).tolist()
+            self.cls_index = all_indices[1::group_len]
+            self.box_index = (self.cls_index - 1)
         else:
             self.cls_index = []
-            self.box_index = all_indices[0::group_len].tolist()
+            self.box_index = all_indices[0::group_len]
         
         self.kpt_index = []
         for idx in all_indices:
@@ -226,14 +226,15 @@ class EDPose(nn.Module):
                     attn_mask_infere[:, :, matchj, :sj] = True
                 if ej < self.num_group * (self.num_body_points+1 + self.seperate_token_for_class):
                     attn_mask_infere[:, :, matchj, ej:] = True
+            
             for match_x in range(self.num_group * (self.num_body_points+1 + self.seperate_token_for_class)):
                 if match_x % group_bbox_kpt==0:
-                    attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x,self.box_index]=False ## kpt index
+                    attn_mask_infere[:,:,match_x,self.box_index]=False ## kpt index
                     if self.seperate_token_for_class == 1:
                         # class token will see boxes and vice versa
-                        attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x, self.box_index + 1]=False
-                        attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x + 1, self.box_index]=False
-                        attn_mask2[:, :, dn_number:, dn_number:][:,:,match_x + 1, self.box_index + 1]=False
+                        attn_mask_infere[:,:,match_x, self.box_index + 1]=False
+                        attn_mask_infere[:,:,match_x + 1, self.box_index]=False
+                        attn_mask_infere[:,:,match_x + 1, self.box_index + 1]=False
 
             attn_mask_infere = attn_mask_infere.flatten(0, 1)
             return None, None, None, attn_mask_infere,None
