@@ -178,7 +178,6 @@ class EdPoseClassifier(nn.Module):
 
 @MODULE_BUILD_FUNCS.registe_with_name(module_name='classifier')
 def build_classifier(args):
-    args.classifier_decoder_layers = 2
     if args.classifier_use_deformable:
         decoder = build_deformable_decoder(args)
     else:

@@ -272,7 +272,7 @@ def main(args):
         model_without_ddp.detr.load_state_dict(checkpoint['model'])
 
     output_dir = Path(args.output_dir)
-    args.output_dir = ""
+    # args.output_dir = ""
     if os.path.exists(os.path.join(args.output_dir, 'checkpoint.pth')):
         args.resume = os.path.join(args.output_dir, 'checkpoint.pth')
     if args.resume:
@@ -364,8 +364,8 @@ def main(args):
             if args.output_dir:
                 checkpoint_paths = [output_dir / 'checkpoint.pth']
                 # extra checkpoint before LR drop and every 100 epochs
-                if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % args.save_checkpoint_interval == 0:
-                    checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
+                # if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % args.save_checkpoint_interval == 0:
+                #     checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
                 for checkpoint_path in checkpoint_paths:
                     weights = {
                         'model': model_without_ddp.state_dict(),
