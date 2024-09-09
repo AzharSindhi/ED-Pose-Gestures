@@ -7,6 +7,7 @@ from pycocotools.cocoeval import COCOeval
 from pycocotools.coco import COCO
 import pycocotools.mask as mask_util
 from util.misc import all_gather
+from copy import deepcopy
 
 class CocoEvaluator(object):
     def __init__(self, img_set, iou_types, useCats=True):
@@ -53,9 +54,11 @@ class CocoEvaluator(object):
     def update(self, predictions):
         img_ids = list(np.unique(list(predictions.keys())))
         self.img_ids.extend(img_ids)
-
+        results_per_iou_batch = {}
         for iou_type in self.iou_types:
             results = self.prepare(predictions, iou_type)
+            results_per_iou_batch[iou_type] = deepcopy(results)
+
             # suppress pycocotools prints
             with open(os.devnull, 'w') as devnull:
                 with contextlib.redirect_stdout(devnull):
@@ -68,6 +71,9 @@ class CocoEvaluator(object):
             img_ids, eval_imgs = evaluate(coco_eval)
 
             self.eval_imgs[iou_type].append(eval_imgs)
+        
+        return results_per_iou_batch
+        
 
     def synchronize_between_processes(self):
         for iou_type in self.iou_types:

@@ -20,12 +20,31 @@ from datasets.data_util import preparing_dataset
 __all__ = ['build']
 
 class CocoDetection(torch.utils.data.Dataset):
-    def __init__(self, root_path, image_set, num_classes, transforms, return_masks):
+    def __init__(self, root_path, image_set, num_classes, transforms, return_masks, sanity=False):
         super(CocoDetection, self).__init__()
         self._transforms = transforms
         self.prepare = ConvertCocoPolysToMask(return_masks, num_classes)
         self.Inference_Path = os.environ.get("Inference_Path")
+        if sanity:
+            self.img_folder = root_path / "val2017"
+            self.coco = COCO(root_path / "annotations/person_keypoints_val2017.json")
+            self.all_imgIds = sorted(self.coco.getImgIds())[:10]
+            # get category names
+            cat_ids = self.coco.getCatIds()
+            cats = self.coco.loadCats(cat_ids)
+            self.class_names = [cat['name'] for cat in cats]
 
+            # for image_id in imgIds:
+            #     if self.coco.getAnnIds(imgIds=image_id) == []:
+            #         continue
+            #     ann_ids = self.coco.getAnnIds(imgIds=image_id)
+            #     target = self.coco.loadAnns(ann_ids)
+            #     num_keypoints = [obj["num_keypoints"] for obj in target]
+            #     if sum(num_keypoints) == 0:
+            #         continue
+                # self.all_imgIds.append(image_id)
+            return
+        
         if image_set == "train":
             self.img_folder = root_path / "train2017"
             self.coco = COCO(root_path / "annotations/person_keypoints_train2017.json")

@@ -134,7 +134,6 @@ def log_metric_to_mlflow(metrics):
     print("-------logging takes:-----------", time.time() - timenow)
 
 def build_model_main(args):
-    args.classifier_use_deformable = False
     from models.registry import MODULE_BUILD_FUNCS
     assert args.modelname in MODULE_BUILD_FUNCS._module_dict
     build_func = MODULE_BUILD_FUNCS.get(args.modelname)
@@ -145,7 +144,7 @@ def build_model_main(args):
 def main(args):
     # utils.init_distributed_mode(args)
     time.sleep(np.random.randint(1, 5)) # to avoid multiple processes writing to the same file
-    
+    args.distributed=False
     print("Loading config file from {}".format(args.config_file))
     output_dir_path = args.output_dir
     # rest of the code...
@@ -234,17 +233,17 @@ def main(args):
 
     dataset_train = build_dataset(image_set='train', args=args)
     dataset_val = build_dataset(image_set='val', args=args)
-    dataset_test = build_dataset(image_set='test', args=args)
+    # dataset_test = build_dataset(image_set='test', args=args)
 
 
     if args.distributed:
         sampler_train = DistributedSampler(dataset_train)
         sampler_val = DistributedSampler(dataset_val, shuffle=False)
-        sampler_test = DistributedSampler(dataset_test, shuffle=False)
+        # sampler_test = DistributedSampler(dataset_test, shuffle=False)
     else:
         sampler_train = torch.utils.data.RandomSampler(dataset_train)
         sampler_val = torch.utils.data.SequentialSampler(dataset_val)
-        sampler_test = torch.utils.data.SequentialSampler(dataset_test)
+        # sampler_test = torch.utils.data.SequentialSampler(dataset_test)
 
     batch_sampler_train = torch.utils.data.BatchSampler(
         sampler_train, args.batch_size, drop_last=True)
@@ -253,8 +252,8 @@ def main(args):
                                    collate_fn=utils.collate_fn, num_workers=args.num_workers)
     data_loader_val = DataLoader(dataset_val, args.batch_size, sampler=sampler_val,
                                  drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
-    data_loader_test = DataLoader(dataset_test, args.batch_size, sampler=sampler_test,
-                                 drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
+    # data_loader_test = DataLoader(dataset_test, args.batch_size, sampler=sampler_test,
+    #                              drop_last=False, collate_fn=utils.collate_fn, num_workers=args.num_workers)
 
     if args.onecyclelr:
         lr_scheduler = torch.optim.lr_scheduler.OneCycleLR(optimizer, max_lr=args.lr, steps_per_epoch=len(data_loader_train), epochs=args.epochs, pct_start=0.2)
@@ -332,7 +331,7 @@ def main(args):
             val_stats, val_coco_evaluator = evaluate(model, criterion, postprocessors,
                                                   data_loader_val, base_ds, device, args.output_dir, wo_class_error=wo_class_error, args=args)
             if args.output_dir:
-                utils.save_on_master(val_coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth", sanity=args.sanity)
+                utils.save_on_master(val_coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
 
             log_stats = {**{f'test_{k}': v for k, v in val_stats.items()} }
             if args.output_dir and utils.is_main_process():
@@ -378,7 +377,7 @@ def main(args):
                         weights.update({
                             'ema_model': ema_m.module.state_dict(),
                         })
-                    utils.save_on_master(weights, checkpoint_path, sanity=args.sanity)
+                    utils.save_on_master(weights, checkpoint_path)
                     
             # val
             val_stats, val_coco_evaluator = evaluate(
@@ -386,11 +385,11 @@ def main(args):
                 wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None)
             )
             #test
-            test_stats, test_coco_evaluator = evaluate(
-                model, criterion, postprocessors, data_loader_test, base_ds, device, args.output_dir,
-                wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None),
-                                                                  img_set="test"
-            )
+            # test_stats, test_coco_evaluator = evaluate(
+            #     model, criterion, postprocessors, data_loader_test, base_ds, device, args.output_dir,
+            #     wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None),
+            #                                                       img_set="test"
+            # )
             map_regular = val_stats["coco_eval_keypoints_detr"][0]
             _isbest = best_map_holder.update(map_regular, epoch, is_ema=False)
             if _isbest:
@@ -401,11 +400,11 @@ def main(args):
                     'lr_scheduler': lr_scheduler.state_dict(),
                     'epoch': epoch,
                     'args': args,
-                }, checkpoint_path, sanity=args.sanity)
+                }, checkpoint_path)
             log_stats = {
                 **{f'train_{k}': v for k, v in train_stats.items()},
                 **{f'val_{k}': v for k, v in val_stats.items()},
-                **{f'test_{k}': v for k, v in test_stats.items()},
+                # **{f'test_{k}': v for k, v in test_stats.items()},
             }
             log_metric_to_mlflow(log_stats)
 
@@ -426,7 +425,7 @@ def main(args):
                         'lr_scheduler': lr_scheduler.state_dict(),
                         'epoch': epoch,
                         'args': args,
-                    }, checkpoint_path, sanity=args.sanity)
+                    }, checkpoint_path)
             log_stats.update(best_map_holder.summary())
 
             ep_paras = {

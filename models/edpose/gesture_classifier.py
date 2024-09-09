@@ -20,8 +20,8 @@ class EdPoseClassifier(nn.Module):
                 edpose_weights_path=None,
                 edpose_finetune_ignore=None,
                 cls_no_bias=False,
-                use_deformable=True,
-                classifier_type="partial"):
+                use_deformable=False,
+                classifier_type="full"):
         
         super(EdPoseClassifier, self).__init__()
         self.edpose_model = edpose_model
@@ -30,7 +30,8 @@ class EdPoseClassifier(nn.Module):
         self.edpose_num_box_layers = edpose_num_box_layers
         self.num_body_points = num_body_points
         self.use_deformable = use_deformable
-        self.load_edpose_weights()
+        if edpose_weights_path:
+            self.load_edpose_weights()
         # if not finetune_edpose:
         #     self.edpose_model.eval()
 

@@ -149,12 +149,17 @@ dmypy.json
 *.tar
 *.tar.gz
 *.pth
+*.png
+*.jpg
+ablation*/
 mlruns/
 mlruns_*/
 mlartifacts/
 # Lightning-Hydra-Template
 configs/local/default.yaml
 /data/
+cluster_jobs/
+exp_scripts/
 .env
 
 # Aim logging

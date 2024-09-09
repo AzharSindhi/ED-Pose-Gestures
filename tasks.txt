@@ -1,4 +1,0 @@
-calculate f1 score for gesture classes only
-understand how the labels are processed and loss is calculated (matching loss between gt and 100 preds)
-update the architecture adding the gesture specific classifier using gesture specific queries (initialized as the proposal confidences)
-what will be the loss function (how GT and pred will be mapped)

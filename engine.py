@@ -8,7 +8,7 @@ import torch
 import util.misc as utils
 from datasets.coco_eval import CocoEvaluator
 from util import box_ops, keypoint_ops
-
+import json
 
 def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
                     data_loader: Iterable, optimizer: torch.optim.Optimizer,
@@ -104,6 +104,10 @@ def train_one_epoch(model: torch.nn.Module, criterion: torch.nn.Module,
 
 
 
+# @torch.no_grad()
+# def convert_to_coco_instance(self, predictions):
+
+
 @torch.no_grad()
 def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, output_dir, wo_class_error=False, args=None, logger=None,img_set="val"):
     try:
@@ -133,6 +137,8 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         from datasets.humanart_eval import CocoEvaluator
         coco_evaluator = CocoEvaluator(base_ds, iou_types, useCats=useCats)
     _cnt = 0
+    predictions_json_box = []
+    predictions_json_kps = []
     for samples, targets in metric_logger.log_every(data_loader, 10, header, logger=logger):
         samples = samples.to(device)
         targets = [{k: to_device(v, device) for k, v in t.items()} for t in targets]
@@ -145,7 +151,13 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         results = postprocessors['bbox'](outputs, orig_target_sizes)
         res = {target['image_id'].item(): output for target, output in zip(targets, results)}
         if coco_evaluator is not None:
-            coco_evaluator.update(res)
+            res_batch_per_type = coco_evaluator.update(res)
+            for ioutype, res_batch in res_batch_per_type.items():
+                if ioutype == 'bbox':
+                    predictions_json_box.extend(res_batch)
+                elif ioutype == 'keypoints':
+                    predictions_json_kps.extend(res_batch)
+
         _cnt += 1
         if args.debug:
             if _cnt % 15 == 0:
@@ -164,6 +176,12 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
         if 'bbox' in postprocessors.keys():
             stats['coco_eval_bbox'] = coco_evaluator.coco_eval['bbox'].stats.tolist()
             stats['coco_eval_keypoints_detr'] = coco_evaluator.coco_eval['keypoints'].stats.tolist()
+    
+    with open(osp.join(output_dir, 'bbox_predictions.json'), 'w') as f:
+        json.dump(predictions_json_box, f)
+    with open(osp.join(output_dir, 'keypoints_predictions.json'), 'w') as f:
+        json.dump(predictions_json_kps, f)
+    
     return stats, coco_evaluator
 
 
