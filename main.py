@@ -85,7 +85,7 @@ def get_args_parser():
     # when there is a seperate classifier or token (modified)
     parser.add_argument("--seperate_token_for_class", action='store_true', help="fine tuning using seperate class token")
     parser.add_argument("--seperate_classifier", action='store_true', help="fine tuning using seperate decoder for classes")
-    parser.add_argument('--classifier_type', type=str, choices=["full", "partial"], default="partial", help='specifiy the classifier type')
+    parser.add_argument('--classifier_type', type=str, choices=["full", "partial"], default="full", help='specifiy the classifier type')
     parser.add_argument('--edpose_model_path', type=str, help='load edpose from other checkpoint')
     parser.add_argument('--edpose_finetune_ignore', type=str, nargs='+', help="which keys to ignore in the weights dictionary?")
     parser.add_argument("--finetune_edpose", action='store_true', help="whether to finetune edpose or used saved weights")
