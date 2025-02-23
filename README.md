@@ -3,7 +3,7 @@ Please visit the original repo for the initial setup and installation: [ED-Pose]
 
 # Key Changes
 - We add the support of adding separate gesture-specific queries used for the classification through additional input argument `--seperate_token_for_class`.
-- Similarly, we provide the support of a combined classifier variant through the additional argument `--seperate_classifier`. By default the combined classifier variant uses the vanilla cross attention, if you want to use the deformable one, pass the argument `classifier_use_deformable` additionally.
+- Similarly, we provide the support of a combined classifier variant through the additional argument `--seperate_classifier`. By default the combined classifier variant uses the vanilla cross attention, if you want to use the deformable one, pass the argument `--classifier_use_deformable` additionally.
 
 # Training
 For example, to train the combined classifier version on the sensoryArt dataset, you can run the following script:

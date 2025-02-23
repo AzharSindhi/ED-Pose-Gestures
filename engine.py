@@ -177,12 +177,7 @@ def evaluate(model, criterion, postprocessors, data_loader, base_ds, device, out
             stats['coco_eval_bbox'] = coco_evaluator.coco_eval['bbox'].stats.tolist()
             stats['coco_eval_keypoints_detr'] = coco_evaluator.coco_eval['keypoints'].stats.tolist()
     
-    with open(osp.join(output_dir, 'bbox_predictions.json'), 'w') as f:
-        json.dump(predictions_json_box, f)
-    with open(osp.join(output_dir, 'keypoints_predictions.json'), 'w') as f:
-        json.dump(predictions_json_kps, f)
-    
-    return stats, coco_evaluator
+    return stats, coco_evaluator, predictions_json_box, predictions_json_kps
 
 
 

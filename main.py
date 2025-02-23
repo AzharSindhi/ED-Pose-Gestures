@@ -25,8 +25,8 @@ import time
 # from dotenv import load_dotenv
 # load_dotenv()
 
-torch.backends.cudnn.benchmark = False # for reproducibility
-torch.use_deterministic_algorithms(True, warn_only=True) # for reproducibility
+# torch.backends.cudnn.benchmark = False # for reproducibility
+# torch.use_deterministic_algorithms(True, warn_only=True) # for reproducibility
 
 def get_args_parser():
     parser = argparse.ArgumentParser('Set transformer detector', add_help=False)
@@ -232,7 +232,7 @@ def main(args):
                                   weight_decay=args.weight_decay)
 
     dataset_train = build_dataset(image_set='train', args=args)
-    dataset_val = build_dataset(image_set='val', args=args)
+    dataset_val = build_dataset(image_set='test', args=args)
     # dataset_test = build_dataset(image_set='test', args=args)
 
 
@@ -329,7 +329,7 @@ def main(args):
         else:
             os.environ['EVAL_FLAG'] = 'TRUE'
             val_stats, val_coco_evaluator = evaluate(model, criterion, postprocessors,
-                                                  data_loader_val, base_ds, device, args.output_dir, wo_class_error=wo_class_error, args=args)
+                                                  data_loader_val, base_ds, device, args.output_dir, wo_class_error=wo_class_error, args=args, img_set="test")
             if args.output_dir:
                 utils.save_on_master(val_coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
 
@@ -380,9 +380,9 @@ def main(args):
                     utils.save_on_master(weights, checkpoint_path)
                     
             # val
-            val_stats, val_coco_evaluator = evaluate(
+            val_stats, val_coco_evaluator, predictions_json_box, predictions_json_kps = evaluate(
                 model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
-                wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None)
+                wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None), img_set="test"
             )
             #test
             # test_stats, test_coco_evaluator = evaluate(
@@ -393,6 +393,10 @@ def main(args):
             map_regular = val_stats["coco_eval_keypoints_detr"][0]
             _isbest = best_map_holder.update(map_regular, epoch, is_ema=False)
             if _isbest:
+                with open(os.path.join(output_dir, 'bbox_predictions.json'), 'w') as f:
+                    json.dump(predictions_json_box, f)
+                with open(os.path.join(output_dir, 'keypoints_predictions.json'), 'w') as f:
+                    json.dump(predictions_json_kps, f)
                 checkpoint_path = output_dir / 'checkpoint_best_regular.pth'
                 utils.save_on_master({
                     'model': model_without_ddp.state_dict(),
@@ -412,7 +416,7 @@ def main(args):
             if args.use_ema:
                 ema_val_stats, ema_val_coco_evaluator = evaluate(
                     ema_m.module, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
-                    wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None)
+                    wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None), img_set="test"
                 )
                 log_stats.update({f'ema_test_{k}': v for k,v in ema_val_stats.items()})
                 map_ema = ema_val_stats['coco_eval_keypoints_detr'][0]

@@ -20,14 +20,17 @@ from datasets.data_util import preparing_dataset
 __all__ = ['build']
 
 class CocoDetection(torch.utils.data.Dataset):
-    def __init__(self, root_path, image_set, num_classes, transforms, return_masks, sanity=False):
+    def __init__(self, root_path, image_set, num_classes, transforms, return_masks, sanity=False, person_only=False):
         super(CocoDetection, self).__init__()
         self._transforms = transforms
         self.prepare = ConvertCocoPolysToMask(return_masks, num_classes)
         self.Inference_Path = os.environ.get("Inference_Path")
+        if person_only:
+            assert num_classes == 1
+            self.num_classes = 1
         if sanity:
-            self.img_folder = root_path / "val2017"
-            self.coco = COCO(root_path / "annotations/person_keypoints_val2017.json")
+            self.img_folder = root_path / "test2017"
+            self.coco = COCO(root_path / "annotations/person_keypoints_test2017.json")
             self.all_imgIds = sorted(self.coco.getImgIds())[:10]
             # get category names
             cat_ids = self.coco.getCatIds()
@@ -248,7 +251,7 @@ def make_coco_transforms(image_set, fix_size=False, strong_aug=False, args=None)
 def build(image_set, args):
     root = Path(args.coco_path)
     dataset = CocoDetection(root, image_set, args.num_classes, transforms=make_coco_transforms(image_set, strong_aug=args.strong_aug),
-                            return_masks=args.masks)
+                            return_masks=args.masks, sanity=args.sanity, person_only=args.person_only)
 
     return dataset
 

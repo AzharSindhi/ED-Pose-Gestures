@@ -95,17 +95,21 @@ def change_categories_to_person(gt_json, res_json, cat_id):
 if __name__ == '__main__':
 
     # Example usage
-    folds_dir = "logs/evaluations_edpose_new_split4"
+    folds_dir = "logs/multiruns_sensorytest_gestures"
     folds_results = {}
     score_threshold = 0.0  # Define your score threshold
-    use_cats = False  # Set to False to ignore category information in evaluation
+    use_cats = True  # Set to False to ignore category information in evaluation
     iou_type = "bbox"  # Set to "keypoints" to evaluate keypoint detection
-
-    for dirname in os.listdir(folds_dir):
+    i = 1
+    for dirname in sorted(os.listdir(folds_dir)):
         if dirname.startswith("vanilla"):
             continue
         if dirname.startswith("extratoken"):
             fold_name = "extratoken"
+        if dirname.startswith("classifier_full"):
+            fold_name = "classifier_full"
+        if dirname.startswith("classifier_partial"):
+            fold_name = "classifier_partial"
         elif dirname.startswith("edpose"):
             fold_name = "edpose"
         else:
@@ -114,14 +118,16 @@ if __name__ == '__main__':
         if fold_name not in folds_results:
             folds_results[fold_name] = []
         
-        gt_json = '/home/woody/iwi5/iwi5197h/stratified_folds_unique_margin_8_n5/fold_4/annotations/person_keypoints_val2017.json'  # Replace with your ground truth JSON file path
+        gt_json = '/net/cluster/azhar/datasets/SensoryGestureRecognition/data/sensoryArt_coco/annotations/person_keypoints_test2017.json'  # Replace with your ground truth JSON file path
         if iou_type == "keypoints":
-            res_json = os.path.join(folds_dir, dirname, "all_coco", "keypoints_predictions.json")
+            res_json = os.path.join(folds_dir, dirname, "all_coco", f"keypoints_predictions{i}.json")
         else:
-            res_json = os.path.join(folds_dir, dirname, "all_coco", "bbox_predictions.json")  # Replace with your results JSON file path
+            res_json = os.path.join(folds_dir, dirname, "all_coco", f"bbox_predictions{i}.json")  # Replace with your results JSON file path
 
-        ap_scores = calculate_ap(gt_json, res_json, score_threshold, use_cats, iou_type)["AP"].round(2)
+        ap_scores = calculate_ap(gt_json, res_json, score_threshold, use_cats, iou_type)["AP"].round(4)
         folds_results[fold_name].append(ap_scores)
+        i+=1
 
     for k, value in folds_results.items():
-        print(k, " mean:", np.mean(value))
+        print(k, " mean:", np.mean(value)*100)
+        print(k, "std:", np.std(value)*100)
