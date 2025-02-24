@@ -200,10 +200,10 @@ def main(args):
     device = torch.device(args.device)
 
     # fix the seed for reproducibility
-    seed = args.seed #+ utils.get_rank()
-    torch.manual_seed(seed)
-    np.random.seed(seed)
-    random.seed(seed)
+    # seed = args.seed #+ utils.get_rank()
+    # torch.manual_seed(seed)
+    # np.random.seed(seed)
+    # random.seed(seed)
 
     # build model
     model, criterion, postprocessors = build_model_main(args)
@@ -232,8 +232,9 @@ def main(args):
                                   weight_decay=args.weight_decay)
 
     dataset_train = build_dataset(image_set='train', args=args)
-    dataset_val = build_dataset(image_set='test', args=args)
+    dataset_val = build_dataset(image_set='val', args=args)
     # dataset_test = build_dataset(image_set='test', args=args)
+    imset = "val"
 
 
     if args.distributed:
@@ -329,7 +330,7 @@ def main(args):
         else:
             os.environ['EVAL_FLAG'] = 'TRUE'
             val_stats, val_coco_evaluator = evaluate(model, criterion, postprocessors,
-                                                  data_loader_val, base_ds, device, args.output_dir, wo_class_error=wo_class_error, args=args, img_set="test")
+                                                  data_loader_val, base_ds, device, args.output_dir, wo_class_error=wo_class_error, args=args, img_set=imset)
             if args.output_dir:
                 utils.save_on_master(val_coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
 
@@ -382,7 +383,7 @@ def main(args):
             # val
             val_stats, val_coco_evaluator, predictions_json_box, predictions_json_kps = evaluate(
                 model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
-                wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None), img_set="test"
+                wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None), img_set=imset
             )
             #test
             # test_stats, test_coco_evaluator = evaluate(
@@ -416,7 +417,7 @@ def main(args):
             if args.use_ema:
                 ema_val_stats, ema_val_coco_evaluator = evaluate(
                     ema_m.module, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
-                    wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None), img_set="test"
+                    wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None), img_set=imset
                 )
                 log_stats.update({f'ema_test_{k}': v for k,v in ema_val_stats.items()})
                 map_ema = ema_val_stats['coco_eval_keypoints_detr'][0]

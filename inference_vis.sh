@@ -1,22 +1,35 @@
-WORK_DIR=/home/woody/iwi5/iwi5197h
-export PYTHONPATH=${venv}/bin/python 
-cd $WORK_DIR/ED-Pose-Simplified/
-#rm -rf slurm_logs/
-export Inference_Path=$WORK_DIR/sensoryArt_coco
-export EDPOSE_COCO_PATH=$WORK_DIR/sensoryArt_coco
-export http_proxy=http://proxy:80
-export https_proxy=http://proxy:80
+#!/bin/bash
 
-## create environment
+epoch=100
+LR=0.0001
+WEIGHT_DECAY=0.01
+LR_DROP=30
+NUM_GROUP=100
+DN_NUMBER=100
+N_QUERIES=900
+BS=2
+N_CLASSES=22
 
-# python3 -m venv venv
-source venv/bin/activate
+export EDPOSE_COCO_PATH=/net/cluster/azhar/mywork/coco_actions/v-coco/data/vcoco_data_processed
 
 
-python  main.py \
- --output_dir "logs/edpose_original_new/"  \
- -c config/edpose.cfg.py \
- --options batch_size=4 epochs=60 lr_drop=55 num_body_points=17 backbone='resnet50' \
- --dataset_file="coco" \
- --pretrain_model_path "logs/edpose_original_new/edpose_finetune0/all_coco/checkpoint.pth" \
- --eval
+# command="python main.py  --seperate_classifier --classifier_type full --config_file config/edpose.cfg.py \
+#     --output_dir logs/multiruns_vcoco_24_02/vanilla_full_noextra$i/all_coco/ \
+#     --options modelname=classifier num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
+#     set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
+#     --dataset_file=coco --find_unused_params \
+#     --finetune_edpose \
+#     --fix_size \
+#     --pretrain_model_path "logs/multiruns_vcoco_23_02/vanilla_full_noextra0/all_coco/checkpoint.pth" \
+#     --eval"
+
+command="python main.py  --config_file config/edpose.cfg.py \
+    --output_dir logs/multiruns_vcoco_24_02/edpose_finetune$i/all_coco/ \
+    --options modelname=edpose num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
+    set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
+    --dataset_file=coco \
+    --fix_size \
+    --pretrain_model_path "logs/multiruns_vcoco_23_02/edpose_finetune0/all_coco/checkpoint.pth" \
+    --eval"
+eval $command
+

@@ -11,10 +11,17 @@
 
 # module load python 
 # module load cuda
-#
+# WORK_DIR=/home/woody/iwi5/iwi5197h
+#/net/cluster/azhar/datasets/SensoryGestureRecognition/data
+# export PYTHONPATH=${venv}/bin/python 
+# cd $WORK_DIR/ED-Pose-Gestures/
+#rm -rf slurm_logs/
+## create environment
+# echo "creating environment"
 
 # # python3 -m venv venv
-# run bashrc
+
+# source venv/bin/activate
 # cd models/edpose/ops
 # rm -rf build/
 # rm -rf dist/
@@ -25,16 +32,17 @@
 # cd ../Deformable-DETR/models/ops
 # sh ./make.sh
 # python test.py
+# cd $WORK_DIR/ED-Pose-Gestures/
 
-epoch=1
+epoch=100
 LR=0.0001
 WEIGHT_DECAY=0.01
 LR_DROP=30
 NUM_GROUP=100
 DN_NUMBER=100
 N_QUERIES=900
-N_CLASSES=22
 BS=2
+N_CLASSES=22
 # Create a run name with the combination of defined LR, weight_decay, num_group, etc.
 commands=()
 N=5
@@ -43,12 +51,53 @@ export EDPOSE_COCO_PATH=/net/cluster/azhar/mywork/coco_actions/v-coco/data/vcoco
 
 for ((i=0; i<N; i++))
 do
+    run_name="lr${LR}_wd${WEIGHT_DECAY}_ng${NUM_GROUP}_dn${DN_NUMBER}_full_vanilla_noextra"
+    # Run the command with the random values and add it to the commands array
+    command="python main.py  --seperate_classifier --classifier_type full --config_file config/edpose.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
+        --output_dir logs/multiruns_vcoco_24_02/vanilla_full_noextra$i/all_coco/ \
+        --options modelname=classifier num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
+        set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
+        --dataset_file=coco --find_unused_params \
+        --finetune_edpose \
+        --fix_size \
+        --note $run_name"
+    
+    commands+=("$command")
+
+    # run_name="lr${LR}_wd${WEIGHT_DECAY}_ng${NUM_GROUP}_dn${DN_NUMBER}_full_deformable_noextra"
+    # # Run the command with the random values and add it to the commands array
+    # command="python main.py  --seperate_classifier --classifier_type full --config_file config/edpose.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
+    #     --output_dir logs/multiruns_stratified_21_07/deformable_full_noextra$i/all_coco/ \
+    #     --options modelname=classifier num_classes=$N_CLASSES batch_size=4 epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
+    #     set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
+    #     --dataset_file=coco --find_unused_params \
+    #     --finetune_edpose \
+    #     --classifier_use_deformable \
+    #     --fix_size \
+    #     --note $run_name"
+    
+    # commands+=("$command")
+
+    # run_name="lr${LR}_wd${WEIGHT_DECAY}_ng${NUM_GROUP}_dn${DN_NUMBER}_extratoken"
+    # # Run the command with the random values and add it to the commands array
+    # # -m torch.distributed.launch --nproc_per_node=1 
+    # command="python main.py --seperate_token_for_class --config_file config/edpose.cfg.py --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
+    #     --output_dir logs/multiruns_stratified_21_07/extratoken_finetune$i/all_coco/ \
+    #     --options modelname=edpose num_classes=$N_CLASSES batch_size=4 epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
+    #     set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
+    #     --dataset_file=coco \
+    #     --finetune_edpose \
+    #     --fix_size \
+    #     --find_unused_params \
+    #     --note $run_name"
+    
+    # commands+=("$command")
 
     # # Create a run name with the combination of defined LR, weight_decay, num_group, etc.
     run_name="lr${LR}_wd${WEIGHT_DECAY}_lrd${LR_DROP}_ng${NUM_GROUP}_dn${DN_NUMBER}_orig"
     # Run the command with the random values and add it to the commands array
     command="python main.py  --config_file config/edpose.cfg.py --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
-        --output_dir logs/multiruns_vcoco_23_02/edpose_finetune$i/all_coco/ \
+        --output_dir logs/multiruns_vcoco_24_02/edpose_finetune$i/all_coco/ \
         --options modelname=edpose num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
         set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
         --dataset_file=coco \
@@ -56,23 +105,13 @@ do
         --note $run_name"
     commands+=("$command")
 
-    # run_name="lr${LR}_wd${WEIGHT_DECAY}_lrd${LR_DROP}_ng${NUM_GROUP}_dn${DN_NUMBER}_orig"
-    # # Run the command with the random values and add it to the commands array
-    # command="python main.py  --config_file config/edpose.cfg.py --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
-    #     --output_dir logs/multiruns_stratified_21_07/edpose_finetune$i/all_coco/ \
-    #     --options modelname=edpose num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
-    #     set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
-    #     --dataset_file=coco \
-    #     --fix_size \
-    #     --note $run_name"
-    # commands+=("$command")
-
 done
 
+
+eval ${commands[1]}
 # run every command
-echo "==================================="
+# echo "==================================="
 # for i in "${!commands[@]}"; do
 #     echo "Running command $i: ${commands[$i]}"
 #     eval ${commands[$i]}
 # done
-eval ${commands[0]}
