@@ -29,8 +29,8 @@ class CocoDetection(torch.utils.data.Dataset):
             assert num_classes == 1
             self.num_classes = 1
         if sanity:
-            self.img_folder = root_path / "test2017"
-            self.coco = COCO(root_path / "annotations/person_keypoints_test2017.json")
+            self.img_folder = root_path / "val2017"
+            self.coco = COCO(root_path / "annotations/person_keypoints_val2017.json")
             self.all_imgIds = sorted(self.coco.getImgIds())[:10]
             # get category names
             cat_ids = self.coco.getCatIds()

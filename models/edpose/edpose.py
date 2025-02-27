@@ -122,6 +122,10 @@ class EDPose(nn.Module):
         nn.init.constant_(_bbox_embed.layers[-1].weight.data, 0)
         nn.init.constant_(_bbox_embed.layers[-1].bias.data, 0)
 
+        _class_ref_embed = MLP(hidden_dim, hidden_dim, 4, 3)
+        nn.init.constant_(_class_ref_embed.layers[-1].weight.data, 0)
+        nn.init.constant_(_class_ref_embed.layers[-1].bias.data, 0)
+
         _pose_embed = MLP(hidden_dim, hidden_dim, 2, 3)
         _pose_hw_embed = MLP(hidden_dim, hidden_dim, 2, 3)
         nn.init.constant_(_pose_embed.layers[-1].weight.data, 0)
@@ -132,6 +136,13 @@ class EDPose(nn.Module):
             box_embed_layerlist = [_bbox_embed for i in range(transformer.num_decoder_layers)]
         else:
             box_embed_layerlist = [copy.deepcopy(_bbox_embed) for i in range(transformer.num_decoder_layers)]
+        
+        if dec_pred_bbox_embed_share:
+            class_ref_embed_layerlist = [_class_ref_embed for i in range(transformer.num_decoder_layers - num_box_decoder_layers)]
+        else:
+            class_ref_embed_layerlist = [copy.deepcopy(_class_ref_embed) for i in range(transformer.num_decoder_layers - num_box_decoder_layers)]
+        
+        
         if dec_pred_class_embed_share:
             class_embed_layerlist = [_class_embed for i in range(transformer.num_decoder_layers)]
         else:
@@ -154,11 +165,13 @@ class EDPose(nn.Module):
         self.bbox_embed = nn.ModuleList(box_embed_layerlist)
         self.class_embed = nn.ModuleList(class_embed_layerlist)
         self.pose_embed=nn.ModuleList(pose_embed_layerlist)
+        self.class_ref_embed = nn.ModuleList(class_ref_embed_layerlist)
         self.pose_hw_embed=nn.ModuleList(pose_hw_embed_layerlist)
         self.transformer.decoder.bbox_embed = self.bbox_embed
         self.transformer.decoder.pose_embed = self.pose_embed
         self.transformer.decoder.pose_hw_embed = self.pose_hw_embed
         self.transformer.decoder.class_embed = self.class_embed
+        self.transformer.decoder.class_ref_embed = self.class_ref_embed
         self.transformer.decoder.num_box_decoder_layers = num_box_decoder_layers
         self.transformer.decoder.num_body_points = num_body_points
         # two stage
@@ -484,6 +497,7 @@ class EDPose(nn.Module):
                     # layer_delta_class_unsig_norm = layer_bbox_embed(layer_hs_class_norm)
                     # layer_outputs_unsig_class = layer_delta_class_unsig_norm  + inverse_sigmoid(reference_before_sigmoid_class_norm)
                     # layer_outputs_unsig_class = layer_outputs_unsig_class.sigmoid()
+
                     layer_cls_norm= layer_cls_embed(layer_hs_class_norm)
                 else:
                     layer_cls_norm= layer_cls_embed(layer_hs_bbox_norm)

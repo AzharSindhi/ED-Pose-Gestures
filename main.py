@@ -69,6 +69,7 @@ def get_args_parser():
     parser.add_argument('--save_results', action='store_true')
     parser.add_argument('--save_log', action='store_true')
     # distributed training parameters
+    parser.add_argument('--no_distributed', action='store_true')
     parser.add_argument('--world_size', default=1, type=int,
                         help='number of distributed processes')
     parser.add_argument('--dist_url', default='env://', help='url used to set up distributed training')
@@ -142,9 +143,13 @@ def build_model_main(args):
 
 
 def main(args):
-    # utils.init_distributed_mode(args)
+    if args.no_distributed:
+        args.distributed = False
+    else:
+        utils.init_distributed_mode(args)
+    
     time.sleep(np.random.randint(1, 5)) # to avoid multiple processes writing to the same file
-    args.distributed=False
+    # args.distributed=False
     print("Loading config file from {}".format(args.config_file))
     output_dir_path = args.output_dir
     # rest of the code...
@@ -218,7 +223,6 @@ def main(args):
 
 
     model_without_ddp = model
-    args.distributed = False
     if args.distributed:
         model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu], find_unused_parameters=args.find_unused_params)
         model_without_ddp = model.module
