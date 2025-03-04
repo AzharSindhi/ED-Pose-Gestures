@@ -45,6 +45,7 @@ class EDPose(nn.Module):
                     num_body_points = 17,
                     num_box_decoder_layers = 2,
                     seperate_token_for_class = False,
+                    decoder_class_detach="None"
                     ):
         super().__init__()
         self.num_queries = num_queries
@@ -174,6 +175,7 @@ class EDPose(nn.Module):
         self.transformer.decoder.class_ref_embed = self.class_ref_embed
         self.transformer.decoder.num_box_decoder_layers = num_box_decoder_layers
         self.transformer.decoder.num_body_points = num_body_points
+        self.transformer.decoder.decoder_class_detach = "None"
         # two stage
         self.two_stage_type = two_stage_type
         assert two_stage_type in ['no', 'standard'], "unknown param {} of two_stage_type".format(two_stage_type)
@@ -646,6 +648,7 @@ def build_edpose(args):
         num_body_points=args.num_body_points,
         num_box_decoder_layers=args.num_box_decoder_layers,
         seperate_token_for_class=args.seperate_token_for_class,
+        decoder_class_detach=args.decoder_class_detach,
     )
     matcher = build_matcher(args)
 

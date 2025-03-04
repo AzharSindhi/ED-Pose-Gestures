@@ -38,15 +38,19 @@ NUM_GROUP=100
 DN_NUMBER=100
 N_QUERIES=900
 BS=4
-N_CLASSES=22
+N_CLASSES=11
 # Create a run name with the combination of defined LR, weight_decay, num_group, etc.
 commands=()
 N=2
 
-readonly JOB_CLASS="vcoco"
+readonly JOB_CLASS="pascalvoc"
 readonly STAGING_DIR="/tmp/$USER-$JOB_CLASS"
+
+# create staging directory, abort if it fails
 (umask 0077; mkdir -p "$STAGING_DIR") || { echo "ERROR: creating $STAGING_DIR failed"; exit 1; }
 
+# only one job is allowed to stage data, if others run at the same time they
+# have to wait to avoid a race
 (
   exec {FD}>"$STAGING_DIR/.lock"
   flock "$FD"
@@ -59,8 +63,8 @@ readonly STAGING_DIR="/tmp/$USER-$JOB_CLASS"
     # TODO: place here the code to copy data to $STAGING_DIR
     # -------------------------------------------------------
 
-    cp $WORK_DIR/datasets/vcoco_data_processed.zip $STAGING_DIR
-    unzip -q $STAGING_DIR/vcoco_data_processed.zip -d $STAGING_DIR
+    cp $WORK_DIR/datasets/pascal_voc_actions_coco.tar.gz $STAGING_DIR
+    pigz -dc $STAGING_DIR/pascal_voc_actions_coco.tar.gz | tar -xC $STAGING_DIR
 
     # -------------------------------------------------------
 
@@ -69,7 +73,8 @@ readonly STAGING_DIR="/tmp/$USER-$JOB_CLASS"
   fi
 )
 
-export EDPOSE_COCO_PATH=$STAGING_DIR/vcoco_data_processed
+
+export EDPOSE_COCO_PATH=$STAGING_DIR/pascal_voc_actions_coco
 PORT=44144
 
 for ((i=0; i<N; i++))

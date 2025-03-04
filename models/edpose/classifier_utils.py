@@ -17,12 +17,13 @@ def update_classification_information(out, outputs_class, aux_loss=True):
             )   
 
     out['pred_logits'] = outputs_class
+    # print(out['pred_logits'].shape[1], out['pred_boxes'].shape[1], out["pred_keypoints"].shape[1])
     assert out['pred_logits'].shape[1] == out['pred_boxes'].shape[1] == out["pred_keypoints"].shape[1]
 
-    if aux_loss:
-        if dn_number > 0 and out["num_tgt"] > 0:
-            out["aux_outputs"][-1].update({
-                'dn_class_pred': dn_class_pred,
-            })
+    # if aux_loss:
+    #     if dn_number > 0 and out["num_tgt"] > 0:
+    #         out["aux_outputs"][-1].update({
+    #             'dn_class_pred': dn_class_pred,
+    #         })
 
     return out

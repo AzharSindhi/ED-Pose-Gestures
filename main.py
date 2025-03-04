@@ -68,6 +68,12 @@ def get_args_parser():
     parser.add_argument('--dec_layers', default=6, type=int)
     parser.add_argument('--save_results', action='store_true')
     parser.add_argument('--save_log', action='store_true')
+
+    # temporary #
+    parser.add_argument('--box_detach_type', default="None")
+    parser.add_argument('--class_detach_type', default="None")
+    parser.add_argument('--decoder_class_detach', default="None")
+    
     # distributed training parameters
     parser.add_argument('--no_distributed', action='store_true')
     parser.add_argument('--world_size', default=1, type=int,

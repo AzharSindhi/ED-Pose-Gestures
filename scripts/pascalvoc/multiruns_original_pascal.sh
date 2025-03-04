@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH --time=15:00:00
-#SBATCH --job-name=dearto
-#SBATCH --gres=gpu:a100:4
-#SBATCH --partition=a100
+#SBATCH --time=08:00:00
+#SBATCH --job-name=pascalo
+#SBATCH --gres=gpu:40:4
+#SBATCH --partition=a40
 #SBATCH --array=0-2  # Adjust based on the number of experiments
 #SBATCH --output=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_out.txt
 #SBATCH --error=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_err.txt
@@ -38,12 +38,12 @@ NUM_GROUP=100
 DN_NUMBER=100
 N_QUERIES=900
 BS=4
-N_CLASSES=14
+N_CLASSES=12
 # Create a run name with the combination of defined LR, weight_decay, num_group, etc.
 commands=()
 N=3
 
-readonly JOB_CLASS="deArt"
+readonly JOB_CLASS="pascalvoc"
 readonly STAGING_DIR="/tmp/$USER-$JOB_CLASS"
 
 # create staging directory, abort if it fails
@@ -63,8 +63,8 @@ readonly STAGING_DIR="/tmp/$USER-$JOB_CLASS"
     # TODO: place here the code to copy data to $STAGING_DIR
     # -------------------------------------------------------
 
-    cp $WORK_DIR/datasets/deArt_dataset.tar.gz $STAGING_DIR
-    pigz -dc $STAGING_DIR/deArt_dataset.tar.gz | tar -xC $STAGING_DIR
+    cp $WORK_DIR/datasets/pascal_voc_actions_coco.tar.gz $STAGING_DIR
+    pigz -dc $STAGING_DIR/pascal_voc_actions_coco.tar.gz | tar -xC $STAGING_DIR
 
     # -------------------------------------------------------
 
@@ -73,8 +73,7 @@ readonly STAGING_DIR="/tmp/$USER-$JOB_CLASS"
   fi
 )
 
-
-export EDPOSE_COCO_PATH=$STAGING_DIR/deArt_coco
+export EDPOSE_COCO_PATH=$STAGING_DIR/pascal_voc_actions_coco
 PORT=33144
 
 for ((i=0; i<N; i++))
@@ -87,7 +86,7 @@ do
 
     # Run the command with the random values and add it to the commands array
     command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py --config_file config/edpose.cfg.py --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
-        --output_dir logs/multiruns_deart_03_03/edpose_finetune$i/all_coco/ \
+        --output_dir logs/pascal_04_03/edpose_finetune$i/all_coco/ \
         --options modelname=edpose num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
         set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
         --dataset_file=coco \

@@ -21,7 +21,9 @@ class EdPoseClassifier(nn.Module):
                 edpose_finetune_ignore=None,
                 cls_no_bias=False,
                 use_deformable=False,
-                classifier_type="full"):
+                classifier_type="full",
+                box_detach_type="detach_clone",
+                class_detach_type = "clone"):
         
         super(EdPoseClassifier, self).__init__()
         self.edpose_model = edpose_model
@@ -30,14 +32,34 @@ class EdPoseClassifier(nn.Module):
         self.edpose_num_box_layers = edpose_num_box_layers
         self.num_body_points = num_body_points
         self.use_deformable = use_deformable
+        self.box_detach_type = box_detach_type
+        self.class_detach_type = class_detach_type
         if edpose_weights_path:
             self.load_edpose_weights()
         # if not finetune_edpose:
         #     self.edpose_model.eval()
 
+        self.seperate_token_for_class = seperate_token_for_class
+        self.classifier_type = classifier_type
+        self.out_size = 100
+        if self.classifier_type == "partial":
+            self.set_size = 1 + self.seperate_token_for_class
+        else:
+            self.set_size = 18 + self.seperate_token_for_class
+
+        self.apply_content_transform = True
+        if self.set_size == 1:
+            self.query_transform = nn.Identity()
+            self.ref_transform = nn.Identity()
+        else:
+            self.query_transform = nn.Linear(self.set_size * 256, 256)
+            self.ref_transform = nn.Linear(self.set_size * 4, 4)
+
+        # decoder_layer = nn.TransformerDecoderLayer(d_model=self.set_size * d_model, nhead=8)
+        # decoder = nn.TransformerDecoder(decoder_layer, 2)
+
         self.decoder = decoder
         self.finetune_edpose = finetune_edpose
-        self.seperate_token_for_class = seperate_token_for_class
         self.dn_number = dn_number
         _class_embed = nn.Linear(d_model, num_classes, bias=(not cls_no_bias))
         if not cls_no_bias:
@@ -47,50 +69,78 @@ class EdPoseClassifier(nn.Module):
         
         self.class_embed = _class_embed
         # classifer full
-        self.classifier_type = classifier_type
-        self.out_size = 100
-        self.set_size = 18 + self.seperate_token_for_class
-        self.apply_content_transform = True
-        self.ref_transform = nn.Linear(self.set_size * 4, 4)
-        self.query_transform = nn.Linear(self.set_size * 256, 256)
 
-    def reshape_and_transform(self, input, target_dim=256):
+    def reshape_and_transform(self, input, target_dim=512):
         """
         Transform the input vector to the required shape
         """
         b, seq_len, dim = input.shape
-        inp = torch.reshape(input, (b, self.out_size, self.set_size, -1))
-        inp = torch.reshape(inp, (b, self.out_size, -1))
+        input = input.view(b, self.out_size, -1)
+        # inp = torch.reshape(inp, (b, self.out_size, -1))
         ## optional transform here
         if target_dim == 4:
             # transform bbox (reference vector) here from 18*4 into 4
-            inp = self.ref_transform(inp)
+            input = self.ref_transform(input)
         elif self.apply_content_transform:
             # transform the content(query vector) here from 18*256 into 256 or into anyother dimension
-            inp = self.query_transform(inp)
+            input = self.query_transform(input)
 
-        return inp
+        return input
+    
+    def box_return_detached(self, tensor):
+        if self.box_detach_type == "detach":
+            return tensor.detach()
+        if self.box_detach_type == "clone":
+            return tensor.clone()
+        if self.box_detach_type == "detach_clone":
+            return tensor.detach().clone()
+
+        return tensor
+
+    def class_return_detached(self, tensor):
+        if self.class_detach_type == "detach":
+            return tensor.detach()
+        if self.class_detach_type == "clone":
+            return tensor.clone()
+        if self.class_detach_type == "detach_clone":
+            return tensor.detach().clone()
+
+        return tensor
     
     def extract_layer_output(self, edpose_out, idx):
         last_layer_all_queries = edpose_out["hs"][idx]
         last_layer_all_reference = edpose_out["reference"][idx]
         self.dn_number = edpose_out["dn_number"]
+
+        layer_hs_bbox_dn = self.box_return_detached(last_layer_all_queries[:,:self.dn_number,:])
+        layer_ref_bbox_dn = self.box_return_detached(last_layer_all_reference[:,:self.dn_number,:])
+
+        last_layer_queries = last_layer_all_queries[:,self.dn_number:,:]
+        last_layer_references = last_layer_all_reference[:,self.dn_number:,:]
+        input_queries_norm = self.box_return_detached(last_layer_queries[:,0::(self.num_body_points+1 + self.seperate_token_for_class),:])
+        input_ref_norm = self.box_return_detached(last_layer_references[:,0::(self.num_body_points+1 + self.seperate_token_for_class),:])
+
+        layer_hs_keypoint_norm = self.box_return_detached(last_layer_queries[:, self.edpose_model.kpt_index, :])
+        layer_ref_keypoint_norm = self.box_return_detached(last_layer_references[:, self.edpose_model.kpt_index, :])
+
         if self.seperate_token_for_class:
-            slice_start = 1
-        else:
-            slice_start = 0
+            layer_hs_cls_norm = last_layer_queries[:,1::(self.num_body_points+1 + self.seperate_token_for_class),:]
+            layer_ref_cls_norm = last_layer_references[:,1::(self.num_body_points+1 + self.seperate_token_for_class),:]
 
-        layer_hs_bbox_dn = last_layer_all_queries[:,:self.dn_number,:]
-        layer_ref_bbox_dn = last_layer_all_reference[:,:self.dn_number,:]
+            input_queries_norm = torch.cat((input_queries_norm, layer_hs_cls_norm), dim=1)
+            input_ref_norm = torch.cat((input_ref_norm, layer_ref_cls_norm), dim=1)
 
-        if self.classifier_type == "partial":
-            layer_hs_bbox_norm = last_layer_all_queries[:,self.dn_number:,:][:,slice_start::(self.num_body_points+1 + self.seperate_token_for_class),:]
-            layer_ref_bbox_norm = last_layer_all_reference[:,self.dn_number:,:][:,slice_start::(self.num_body_points+1 + self.seperate_token_for_class),:]
-        else:
-            layer_hs_bbox_norm = self.reshape_and_transform(last_layer_all_queries[:,self.dn_number:,:])
-            layer_ref_bbox_norm = self.reshape_and_transform(last_layer_all_reference[:,self.dn_number:,:], target_dim=4)
-
-        return layer_hs_bbox_dn, layer_hs_bbox_norm, layer_ref_bbox_dn, layer_ref_bbox_norm
+        if self.classifier_type == "full":
+            input_queries_norm = torch.cat((input_queries_norm, layer_hs_keypoint_norm), dim=1)
+            input_ref_norm = torch.cat((input_ref_norm, layer_ref_keypoint_norm), dim=1)
+        
+        # if self.classifier_type == "partial":
+        #     layer_hs_keypoint_norm = torch.zeros_like()
+        
+        layer_hs_final_norm = self.reshape_and_transform(input_queries_norm)
+        layer_ref_final_norm = self.reshape_and_transform(input_ref_norm, target_dim=4)
+        
+        return layer_hs_bbox_dn, layer_hs_final_norm, layer_ref_bbox_dn, layer_ref_final_norm
 
     def forward_decoder(self, decoder_queries, refpoints_sigmoid, edpose_out, return_last=True):
         if self.use_deformable:
@@ -105,19 +155,20 @@ class EdPoseClassifier(nn.Module):
     def forward_deformable_decoder(self, decoder_queries, refpoints_sigmoid, edpose_out):
         hs, references = self.decoder(
             tgt=decoder_queries.transpose(0, 1), 
-            memory=edpose_out["memory"].transpose(0, 1), 
-            memory_key_padding_mask=edpose_out["memory_key_padding_mask"], 
-            pos=edpose_out["pos"].transpose(0, 1),
-            reference_points=refpoints_sigmoid.transpose(0, 1), 
-            level_start_index=edpose_out["level_start_index"], 
-            spatial_shapes=edpose_out["spatial_shapes"],
-            valid_ratios=edpose_out["valid_ratios"],
+            memory=edpose_out["memory"].transpose(0, 1),#.clone(),
+            memory_key_padding_mask=edpose_out["memory_key_padding_mask"],#.clone(), 
+            pos=edpose_out["pos"].transpose(0, 1),#.clone(),
+            reference_points=refpoints_sigmoid.transpose(0, 1),#.clone(),
+            level_start_index=edpose_out["level_start_index"],#.clone(), 
+            spatial_shapes=edpose_out["spatial_shapes"],#.clone(),
+            valid_ratios=edpose_out["valid_ratios"],#.clone(),
             # tgt_mask=edpose_out["attn_mask"],
             # tgt_mask2=edpose_out["attn_mask2"]
         )
         return hs, references
 
     def forward_vanilla_decoder(self, decoder_queries, edpose_out):
+        # print(decoder_queries.transpose(0, 1).shape, edpose_out["memory"].transpose(0, 1).shape)
         hs = self.decoder(
             tgt=decoder_queries.transpose(0, 1), 
             memory=edpose_out["memory"].transpose(0, 1), 
@@ -148,6 +199,12 @@ class EdPoseClassifier(nn.Module):
             edpose_out = self.edpose_model(samples, targets)
         
         dn_queries, match_queries, dn_ref, match_ref = self.extract_layer_output(edpose_out, -1) # last layer output
+        # detach the tensors
+        # dn_queries = dn_queries.clone()
+        # match_queries = match_queries.clone()
+        # dn_ref = dn_ref.clone()
+        # match_ref = match_ref.clone()
+
         decoder_queries = torch.cat((dn_queries, match_queries), dim=1)
         decoder_ref = torch.cat((dn_ref, match_ref), dim=1)
         # # forward to the decoder
@@ -179,13 +236,13 @@ class EdPoseClassifier(nn.Module):
 
 @MODULE_BUILD_FUNCS.registe_with_name(module_name='classifier')
 def build_classifier(args):
+    
+    edpose_model, criterion, postprocessors = build_edpose(args)
     if args.classifier_use_deformable:
         decoder = build_deformable_decoder(args)
     else:
         decoder_layer = nn.TransformerDecoderLayer(d_model=args.hidden_dim, nhead=args.nheads)
         decoder = nn.TransformerDecoder(decoder_layer, num_layers=args.classifier_decoder_layers)
-    
-    edpose_model, criterion, postprocessors = build_edpose(args)
     model = EdPoseClassifier(edpose_model, decoder, args.num_classes, 
                             d_model=args.hidden_dim, 
                             dn_number=0 if args.no_dn else args.dn_number,
@@ -196,7 +253,9 @@ def build_classifier(args):
                             edpose_finetune_ignore=args.edpose_finetune_ignore,
                             cls_no_bias=args.cls_no_bias,
                             use_deformable=args.classifier_use_deformable,
-                            classifier_type=args.classifier_type
+                            classifier_type=args.classifier_type,
+                            box_detach_type=args.box_detach_type,
+                            class_detach_type=args.class_detach_type
                         )
     return model, criterion, postprocessors
 

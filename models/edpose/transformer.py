@@ -660,6 +660,7 @@ class TransformerDecoder(nn.Module):
         self.num_dn = num_dn
         self.hw = nn.Embedding(self.num_body_points,2)
         self.keypoint_embed = nn.Embedding(self.num_body_points, d_model)
+        self.decoder_class_detach = "None"
         # self.gesture_embed = nn.Embedding(self.num_group, d_model)
         # self.seperate_token_for_class = 0
         # self.kpt_index = []
@@ -668,7 +669,16 @@ class TransformerDecoder(nn.Module):
         #     self.kpt_index.extend(range(start, start + self.num_body_points))
         #     start = start + self.num_body_points + 1 + self.seperate_token_for_class # excluding box and class token
             
+    def detach_class_token(self, tensor):
+        if self.decoder_class_detach == "detach":
+            return tensor.detach()
+        if self.decoder_class_detach == "clone":
+            return tensor.clone()
+        if self.decoder_class_detach == "detach_clone":
+            return tensor.detach().clone()
 
+        return tensor
+    
     def forward(self, tgt, memory,
                 tgt_mask: Optional[Tensor] = None, #
                 tgt_mask2: Optional[Tensor] = None, #
@@ -757,9 +767,9 @@ class TransformerDecoder(nn.Module):
                 new_output_for_box = torch.gather(output[effect_num_dn:], 0, topk_proposals.unsqueeze(-1).repeat(1, 1, self.d_model))
                 ###
                 if self.seperate_token_for_class:
-                    new_reference_points_for_class = torch.gather(new_reference_points[effect_num_dn:], 0, topk_proposals.unsqueeze(-1).repeat(1, 1, 4))
-                    new_output_for_class = torch.gather(output[effect_num_dn:], 0, topk_proposals.unsqueeze(-1).repeat(1, 1, self.d_model))
-                    # should i do clone detach? no i think
+                    new_reference_points_for_class = self.detach_class_token(torch.gather(new_reference_points[effect_num_dn:], 0, topk_proposals.unsqueeze(-1).repeat(1, 1, 4))) #.clone()
+                    new_output_for_class = self.detach_class_token(torch.gather(output[effect_num_dn:], 0, topk_proposals.unsqueeze(-1).repeat(1, 1, self.d_model)))#.clone())
+                    # should i do clone or  detach? no i think
                 ###
                 # new output_for_class = torch.gather(output[effect_num_dn:], 0, topk_proposals.unsqueeze(-1).repeat(1, 1, self.d_model))
                 # query expansion for keypoints               
@@ -796,18 +806,10 @@ class TransformerDecoder(nn.Module):
                 output_bbox_dn=output[:effect_num_dn]
                 output_bbox_norm = output[effect_num_dn:][0::(self.num_body_points+1 + self.seperate_token_for_class)]
                 if self.seperate_token_for_class:
-                    # output_class_dn = output[:effect_num_dn]
                     output_class_norm = output[effect_num_dn:][1::(self.num_body_points+1 + self.seperate_token_for_class)] ####
-                    reference_before_sigmoid_class_norm = reference_before_sigmoid[effect_num_dn:][1::(self.num_body_points+1 + self.seperate_token_for_class)] ####
-                    # delta_unsig_class = self.class_embed[layer_id](output_class_norm) ##
-                    # outputs_unsig_class = delta_unsig_class + reference_before_sigmoid_class_norm
-                    # new_reference_points_for_class_norm =  outputs_unsig_norm.sigmoid()#outputs_unsig_class.sigmoid() ##
-                    # reference_before_sigmoid_class_dn=reference_before_sigmoid[:effect_num_dn]
-                    # delta_unsig_dn = self.gesture_embed[layer_id](output_class_dn)
+                    reference_before_sigmoid_class_norm = reference_before_sigmoid[effect_num_dn:][1::(self.num_body_points+1 + self.seperate_token_for_class)]
                     delta_unsig_norm = self.class_ref_embed[layer_id-self.num_box_decoder_layers](output_class_norm)
-                    # outputs_unsig_dn = delta_unsig_dn + reference_before_sigmoid_class_dn
                     outputs_unsig_norm = delta_unsig_norm + reference_before_sigmoid_class_norm
-                    # new_reference_points_for_class_dn = outputs_unsig_dn.sigmoid()
                     new_reference_points_for_class_norm = outputs_unsig_norm.sigmoid()
                 
                 
@@ -835,11 +837,10 @@ class TransformerDecoder(nn.Module):
                 
                 if self.seperate_token_for_class:
                     new_reference_points_norm = torch.cat((new_reference_points_for_box_norm.unsqueeze(1), new_reference_points_for_class_norm.unsqueeze(1), new_reference_points_for_keypoint.view(-1,self.num_body_points,bs,4)), dim=1).flatten(0,1) ## append new class token here
-                    new_reference_points = torch.cat((new_reference_points_for_box_dn, new_reference_points_norm), dim=0)
-
                 else:
                     new_reference_points_norm = torch.cat((new_reference_points_for_box_norm.unsqueeze(1), new_reference_points_for_keypoint.view(-1,self.num_body_points,bs,4)), dim=1).flatten(0,1)
-                    new_reference_points = torch.cat((new_reference_points_for_box_dn, new_reference_points_norm), dim=0)
+                
+                new_reference_points = torch.cat((new_reference_points_for_box_dn, new_reference_points_norm), dim=0)
 
             if self.rm_detach and 'dec' in self.rm_detach:
                 reference_points = new_reference_points

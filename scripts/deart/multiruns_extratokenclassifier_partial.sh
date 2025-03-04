@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --time=15:00:00
-#SBATCH --job-name=dearto
+#SBATCH --job-name=deart_cpextra
 #SBATCH --gres=gpu:a100:4
 #SBATCH --partition=a100
-#SBATCH --array=0-2  # Adjust based on the number of experiments
+#SBATCH --array=0-1  # Adjust based on the number of experiments
 #SBATCH --output=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_out.txt
 #SBATCH --error=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_err.txt
 
@@ -41,7 +41,7 @@ BS=4
 N_CLASSES=14
 # Create a run name with the combination of defined LR, weight_decay, num_group, etc.
 commands=()
-N=3
+N=2
 
 readonly JOB_CLASS="deArt"
 readonly STAGING_DIR="/tmp/$USER-$JOB_CLASS"
@@ -75,25 +75,24 @@ readonly STAGING_DIR="/tmp/$USER-$JOB_CLASS"
 
 
 export EDPOSE_COCO_PATH=$STAGING_DIR/deArt_coco
-PORT=33144
+PORT=44144
 
 for ((i=0; i<N; i++))
 do
     # add + i
     CURRENT_PORT=$((PORT + i))
-
-    # # Create a run name with the combination of defined LR, weight_decay, num_group, etc.
-    run_name="lr${LR}_wd${WEIGHT_DECAY}_lrd${LR_DROP}_ng${NUM_GROUP}_dn${DN_NUMBER}_orig"
-
+    run_name="lr${LR}_wd${WEIGHT_DECAY}_ng${NUM_GROUP}_dn${DN_NUMBER}_full_vanilla_withextra"
     # Run the command with the random values and add it to the commands array
-    command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py --config_file config/edpose.cfg.py --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
-        --output_dir logs/multiruns_deart_03_03/edpose_finetune$i/all_coco/ \
-        --options modelname=edpose num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
+    command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py  --seperate_token_for_class --seperate_classifier --classifier_type partial --config_file config/edpose.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
+        --output_dir logs/multiruns_deart_01_03/vanilla_partial_withextra$i/all_coco/ \
+        --options modelname=classifier num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
         set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
-        --dataset_file=coco \
+        --dataset_file=coco --find_unused_params \
+        --finetune_edpose \
         --fix_size \
         --find_unused_params \
         --note $run_name"
+    
     commands+=("$command")
 
 done

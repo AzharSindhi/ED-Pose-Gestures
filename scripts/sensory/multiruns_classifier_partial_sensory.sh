@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --time=08:00:00
-#SBATCH --job-name=multirun_cpex
+#SBATCH --job-name=multirun_cpartial_noextra
 #SBATCH --gres=gpu:a40:4
 #SBATCH --partition=a40
 #SBATCH --array=0-1  # Adjust based on the number of experiments
@@ -32,7 +32,7 @@ source models/edpose/ops/env/bin/activate
 
 epoch=100
 LR=0.0001
-WEIGHT_DECAY=0.1
+WEIGHT_DECAY=0.01
 LR_DROP=30
 NUM_GROUP=100
 DN_NUMBER=100
@@ -78,18 +78,15 @@ do
     CURRENT_PORT=$((PORT + i))
     run_name="lr${LR}_wd${WEIGHT_DECAY}_ng${NUM_GROUP}_dn${DN_NUMBER}_partial_vanilla_noextra"
     # Run the command with the random values and add it to the commands array
-    command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py  --seperate_classifier \
-    --classifier_type partial --config_file config/edpose.cfg.py \
-    --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
-    --output_dir logs/multiruns_vcoco_01_03/vanilla_partial_noextra$i/all_coco/ \
-    --options modelname=classifier num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
+    command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py  --seperate_classifier --classifier_type partial --config_file config/edpose.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
+        --output_dir logs/multiruns_vcoco_27_02/vanilla_partial_noextra$i/all_coco/ \
+        --options modelname=classifier num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
         set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
-    --dataset_file=coco --find_unused_params \
-    --finetune_edpose \
-    --seperate_token_for_class \
-    --fix_size \
-    --find_unused_params \
-    --note $run_name"
+        --dataset_file=coco --find_unused_params \
+        --finetune_edpose \
+        --fix_size \
+        --find_unused_params \
+        --note $run_name"
     
     commands+=("$command")
 

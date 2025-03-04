@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --time=08:00:00
-#SBATCH --job-name=multirun_classifier_withextra
-#SBATCH --gres=gpu:a100:4
-#SBATCH --partition=a100
+#SBATCH --job-name=multirun_cfex
+#SBATCH --gres=gpu:a40:4
+#SBATCH --partition=a40
 #SBATCH --array=0-1  # Adjust based on the number of experiments
 #SBATCH --output=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_out.txt
 #SBATCH --error=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_err.txt
@@ -31,8 +31,8 @@ source models/edpose/ops/env/bin/activate
 # cd $WORK_DIR/ED-Pose-Gestures/
 
 epoch=100
-LR=0.0001
-WEIGHT_DECAY=0.01
+LR=0.00001
+WEIGHT_DECAY=0.1
 LR_DROP=30
 NUM_GROUP=100
 DN_NUMBER=100
@@ -71,22 +71,23 @@ readonly STAGING_DIR="/tmp/$USER-$JOB_CLASS"
 
 export EDPOSE_COCO_PATH=$STAGING_DIR/vcoco_data_processed
 PORT=55234
-
-
+# --edpose_finetune_ignore class_embed.
+export SLURM_GPUS_ON_NODE=4
 for ((i=0; i<N; i++))
 do
     # add + i
     CURRENT_PORT=$((PORT + i))
-    run_name="lr${LR}_wd${WEIGHT_DECAY}_ng${NUM_GROUP}_dn${DN_NUMBER}_full_vanilla_withextra"
+    run_name="lr${LR}_wd${WEIGHT_DECAY}_ng${NUM_GROUP}_dn${DN_NUMBER}_partial_vanilla_withextra"
     # Run the command with the random values and add it to the commands array
-    command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py  --seperate_token_for_class --seperate_classifier --classifier_type full --config_file config/edpose.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
-        --output_dir logs/multiruns_vcoco_27_02/vanilla_full_withextra$i/all_coco/ \
+    command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py  --seperate_classifier --classifier_type partial --config_file config/edpose.cfg.py \
+        --edpose_model_path logs/multiruns_vcoco_01_03/extratoken0/all_coco/checkpoint.pth \
+        --output_dir logs/classifier_test_nofinetune/vanilla_full_withextra$i/all_coco/ \
         --options modelname=classifier num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
         set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
-        --dataset_file=coco --find_unused_params \
-        --finetune_edpose \
+        --dataset_file=coco \
         --fix_size \
         --find_unused_params \
+        --classifier_decoder_layers 4
         --note $run_name"
     
     commands+=("$command")
@@ -94,5 +95,5 @@ do
 done
 
 # submit the jobs to slurm
-srun ${commands[$SLURM_ARRAY_TASK_ID]}
-# eval ${commands[0]}
+# srun ${commands[$SLURM_ARRAY_TASK_ID]}
+eval ${commands[0]}
