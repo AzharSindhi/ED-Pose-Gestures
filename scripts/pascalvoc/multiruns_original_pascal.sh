@@ -73,6 +73,7 @@ readonly STAGING_DIR="/tmp/$USER-$JOB_CLASS"
   fi
 )
 
+
 export EDPOSE_COCO_PATH=$STAGING_DIR/pascal_voc_actions_coco
 PORT=33144
 
@@ -90,7 +91,6 @@ do
         --options modelname=edpose num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
         set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
         --dataset_file=coco \
-        --fix_size \
         --find_unused_params \
         --note $run_name"
     commands+=("$command")

@@ -1,9 +1,9 @@
 #!/bin/bash
 #SBATCH --time=08:00:00
 #SBATCH --job-name=multirun_cfex
-#SBATCH --gres=gpu:a40:4
-#SBATCH --partition=a40
-#SBATCH --array=0-1  # Adjust based on the number of experiments
+#SBATCH --gres=gpu:a100:4
+#SBATCH --partition=a100
+#SBATCH --array=0-2  # Adjust based on the number of experiments
 #SBATCH --output=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_out.txt
 #SBATCH --error=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_err.txt
 
@@ -38,10 +38,10 @@ NUM_GROUP=100
 DN_NUMBER=100
 N_QUERIES=900
 BS=4
-N_CLASSES=11
+N_CLASSES=12
 # Create a run name with the combination of defined LR, weight_decay, num_group, etc.
 commands=()
-N=2
+N=3
 
 readonly JOB_CLASS="pascalvoc"
 readonly STAGING_DIR="/tmp/$USER-$JOB_CLASS"
@@ -77,14 +77,13 @@ readonly STAGING_DIR="/tmp/$USER-$JOB_CLASS"
 export EDPOSE_COCO_PATH=$STAGING_DIR/pascal_voc_actions_coco
 PORT=55234
 # --edpose_finetune_ignore class_embed.
-export SLURM_GPUS_ON_NODE=4
 for ((i=0; i<N; i++))
 do
     # add + i
     CURRENT_PORT=$((PORT + i))
     run_name="lr${LR}_wd${WEIGHT_DECAY}_ng${NUM_GROUP}_dn${DN_NUMBER}_partial_vanilla_withextra"
     # Run the command with the random values and add it to the commands array
-    command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py  --seperate_token_for_class --seperate_classifier --classifier_type partial --config_file config/edpose.cfg.py \
+    command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py  --seperate_token_for_class --seperate_classifier --classifier_type full --config_file config/edpose.cfg.py \
         --edpose_model_path logs/multiruns_vcoco_01_03/extratoken0/all_coco/checkpoint.pth \
         --output_dir logs/classifier_test_nofinetune/vanilla_full_withextra$i/all_coco/ \
         --options modelname=classifier num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \

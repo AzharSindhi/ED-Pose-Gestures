@@ -10,6 +10,6 @@ termcolor
 addict
 yapf
 timm
-mlflow==2.12.1
+mlflow
 opencv-python
 yapf==0.40.1
