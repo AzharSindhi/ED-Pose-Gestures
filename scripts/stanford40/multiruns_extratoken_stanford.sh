@@ -1,12 +1,13 @@
 #!/bin/bash
-#SBATCH --time=08:00:00
-#SBATCH --job-name=multirun_ex
+#SBATCH --time=12:00:00
+#SBATCH --job-name=stanford_ex
 #SBATCH --gres=gpu:a40:4
+#SBATCH --array=0-2
 #SBATCH --output=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_out.txt
 #SBATCH --error=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_err.txt
 
 
-WORK_DIR=/home/atuin/b193dc/b193dc14/mywork
+WORK_DIR=$WORK/mywork
 #/net/cluster/azhar/datasets/SensoryGestureRecognition/data
 # export PYTHONPATH=${venv}/bin/python 
 cd $WORK_DIR/ED-Pose-Gestures/
@@ -82,11 +83,10 @@ do
     run_name="lr${LR}_wd${WEIGHT_DECAY}_ng${NUM_GROUP}_dn${DN_NUMBER}_extratoken"
     # Run the command with the random values and add it to the commands array
     command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py  --seperate_token_for_class --config_file config/edpose.cfg.py --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
-        --output_dir logs/multiruns_vcoco_01_03/extratoken$i/all_coco/ \
+        --output_dir logs/stanford40_04_03/extratoken$i/all_coco/ \
         --options modelname=edpose num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
         set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
         --dataset_file=coco --find_unused_params \
-        --fix_size \
         --finetune_edpose \
         --find_unused_params \
         --note $run_name"
@@ -95,25 +95,6 @@ do
 
 done
 
-######################
-# add + i
-i=0
-CURRENT_PORT=$((PORT + i))
-run_name="lr${LR}_wd${WEIGHT_DECAY}_ng${NUM_GROUP}_dn${DN_NUMBER}_extratoken"
-# Run the command with the random values and add it to the commands array
-command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py  --seperate_token_for_class --config_file config/edpose.cfg.py --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
-    --output_dir logs/multiruns_vcoco_01_03/extratoken$i/all_coco/ \
-    --options modelname=edpose num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
-    set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
-    --dataset_file=coco --find_unused_params \
-    --fix_size \
-    --finetune_edpose \
-    --find_unused_params \
-    --note $run_name"
-
-eval $command
-##############
-
 # submit the jobs to slurm
-# srun ${commands[$SLURM_ARRAY_TASK_ID]}
+srun ${commands[$SLURM_ARRAY_TASK_ID]}
 # eval ${commands[0]}
