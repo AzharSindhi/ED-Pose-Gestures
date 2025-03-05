@@ -7,10 +7,11 @@ from ..registry import MODULE_BUILD_FUNCS
 from typing import List
 import util.misc as utils
 from .classifier_utils import update_classification_information
-
+from copy import deepcopy
 
 import pickle
 
+    
 class EdPoseClassifier(nn.Module):
     def __init__(self, 
                 edpose_model, decoder, num_classes, d_model = 256, dn_number = 100,
@@ -36,8 +37,8 @@ class EdPoseClassifier(nn.Module):
         self.class_detach_type = class_detach_type
         if edpose_weights_path:
             self.load_edpose_weights()
-        # if not finetune_edpose:
-        #     self.edpose_model.eval()
+        if not finetune_edpose:
+            self.edpose_model.eval()
 
         self.seperate_token_for_class = seperate_token_for_class
         self.classifier_type = classifier_type
@@ -46,14 +47,16 @@ class EdPoseClassifier(nn.Module):
             self.set_size = 1 + self.seperate_token_for_class
         else:
             self.set_size = 18 + self.seperate_token_for_class
+        
+        self.ref_set_size = 1 + self.seperate_token_for_class + int(classifier_type == "full")
 
         self.apply_content_transform = True
         if self.set_size == 1:
             self.query_transform = nn.Identity()
             self.ref_transform = nn.Identity()
         else:
-            self.query_transform = nn.Linear(self.set_size * 256, 256)
-            self.ref_transform = nn.Linear(self.set_size * 4, 4)
+            self.query_transform = nn.Linear(self.set_size * 256, d_model)
+            self.ref_transform = nn.Linear(4 * self.ref_set_size, 4)
 
         # decoder_layer = nn.TransformerDecoderLayer(d_model=self.set_size * d_model, nhead=8)
         # decoder = nn.TransformerDecoder(decoder_layer, 2)
@@ -68,9 +71,14 @@ class EdPoseClassifier(nn.Module):
             _class_embed.bias.data = torch.ones(num_classes) * bias_value
         
         self.class_embed = _class_embed
+        self.pos_embedding_proj = nn.Linear(4, d_model)
+        self.class_projection = deepcopy(_class_embed)
+        self.class_specific_queries = nn.Embedding(num_classes, d_model) # for learnable
+        self.kpts_ref_proj = nn.Linear(self.num_body_points*3, 4)
+        self.box_prior_weight = 0.3
         # classifer full
 
-    def reshape_and_transform(self, input, target_dim=512):
+    def reshape_and_transform(self, input, target_dim = 256):
         """
         Transform the input vector to the required shape
         """
@@ -107,32 +115,68 @@ class EdPoseClassifier(nn.Module):
 
         return tensor
     
+
+    def inject_class_information(self, queries, class_logits):
+        """
+        Injects prior class information from box queries into decoder queries.
+
+        Args:
+            queries (torch.Tensor): The decoder queries of shape (b, num_queries, d_model).
+            class_logits (torch.Tensor): The predicted class logits from box queries of shape (b, num_queries, num_classes).
+
+        Returns:
+            torch.Tensor: Updated decoder queries incorporating class information.
+        """
+        # Apply softmax to get confidence scores (class probabilities)
+        pred_class_weights = torch.softmax(class_logits, dim=-1)  # Shape: (b, num_queries, num_classes)
+
+        # Get the predicted class indices (argmax over class dimension)
+        pred_classes = torch.argmax(pred_class_weights, dim=-1)  # Shape: (b, num_queries)
+
+        # Get class embeddings from nn.Embedding layer
+        pred_embeddings = self.class_specific_queries(pred_classes)  # Shape: (b, num_queries, d_model)
+
+        # Ensure pred_class_weights matches embedding dimension
+        class_tokens = self.class_specific_queries.weight  # (num_classes, d_model)
+
+        # Compute confidence-weighted class embedding (proper shape handling)
+        weighted_class_embeddings = torch.einsum("bqc,cd->bqd", pred_class_weights, class_tokens)  # (b, num_queries, d_model)
+
+        # Inject into decoder queries
+        return queries + self.box_prior_weight * weighted_class_embeddings
+    # Shape: (b, num_queries, d_model)
+
     def extract_layer_output(self, edpose_out, idx):
         last_layer_all_queries = edpose_out["hs"][idx]
-        last_layer_all_reference = edpose_out["reference"][idx]
+        # last_layer_all_reference = edpose_out["reference"][idx]
         self.dn_number = edpose_out["dn_number"]
 
         layer_hs_bbox_dn = self.box_return_detached(last_layer_all_queries[:,:self.dn_number,:])
-        layer_ref_bbox_dn = self.box_return_detached(last_layer_all_reference[:,:self.dn_number,:])
-
+        layer_ref_bbox_dn = None
+        dn_class_logits = None
+        if "dn_bbox_pred" in edpose_out:
+            layer_ref_bbox_dn = self.box_return_detached(edpose_out["dn_bbox_pred"])#self.box_return_detached(last_layer_all_reference[:,:self.dn_number,:])
+            dn_class_logits = self.class_projection(layer_hs_bbox_dn)
+        
         last_layer_queries = last_layer_all_queries[:,self.dn_number:,:]
-        last_layer_references = last_layer_all_reference[:,self.dn_number:,:]
+        # last_layer_references = last_layer_all_reference[:,self.dn_number:,:]
         input_queries_norm = self.box_return_detached(last_layer_queries[:,0::(self.num_body_points+1 + self.seperate_token_for_class),:])
-        input_ref_norm = self.box_return_detached(last_layer_references[:,0::(self.num_body_points+1 + self.seperate_token_for_class),:])
-
+        input_ref_norm = self.box_return_detached(edpose_out["pred_boxes"])#self.box_return_detached(last_layer_references[:,0::(self.num_body_points+1 + self.seperate_token_for_class),:])
+        box_class_logits = self.class_projection(input_queries_norm)
         layer_hs_keypoint_norm = self.box_return_detached(last_layer_queries[:, self.edpose_model.kpt_index, :])
-        layer_ref_keypoint_norm = self.box_return_detached(last_layer_references[:, self.edpose_model.kpt_index, :])
+        layer_ref_keypoint_norm = self.box_return_detached(edpose_out["pred_keypoints"])
 
         if self.seperate_token_for_class:
             layer_hs_cls_norm = last_layer_queries[:,1::(self.num_body_points+1 + self.seperate_token_for_class),:]
-            layer_ref_cls_norm = last_layer_references[:,1::(self.num_body_points+1 + self.seperate_token_for_class),:]
+            layer_ref_cls_norm = self.box_return_detached(edpose_out["pred_boxes"])
 
             input_queries_norm = torch.cat((input_queries_norm, layer_hs_cls_norm), dim=1)
             input_ref_norm = torch.cat((input_ref_norm, layer_ref_cls_norm), dim=1)
 
         if self.classifier_type == "full":
             input_queries_norm = torch.cat((input_queries_norm, layer_hs_keypoint_norm), dim=1)
-            input_ref_norm = torch.cat((input_ref_norm, layer_ref_keypoint_norm), dim=1)
+            layer_kpts_ref = self.kpts_ref_proj(layer_ref_keypoint_norm)
+            input_ref_norm = torch.cat((input_ref_norm, layer_kpts_ref), dim=1)
         
         # if self.classifier_type == "partial":
         #     layer_hs_keypoint_norm = torch.zeros_like()
@@ -140,9 +184,9 @@ class EdPoseClassifier(nn.Module):
         layer_hs_final_norm = self.reshape_and_transform(input_queries_norm)
         layer_ref_final_norm = self.reshape_and_transform(input_ref_norm, target_dim=4)
         
-        return layer_hs_bbox_dn, layer_hs_final_norm, layer_ref_bbox_dn, layer_ref_final_norm
+        return layer_hs_bbox_dn, dn_class_logits, layer_hs_final_norm, box_class_logits, layer_ref_bbox_dn, layer_ref_final_norm
 
-    def forward_decoder(self, decoder_queries, refpoints_sigmoid, edpose_out, return_last=True):
+    def forward_decoder(self, decoder_queries, refpoints_sigmoid, box_logits, edpose_out, return_last=True):
         if self.use_deformable:
             hs, ref = self.forward_deformable_decoder(decoder_queries, refpoints_sigmoid, edpose_out)
             if return_last:
@@ -150,7 +194,7 @@ class EdPoseClassifier(nn.Module):
             else:
                 return hs, ref
         else:
-            return self.forward_vanilla_decoder(decoder_queries, edpose_out)
+            return self.forward_vanilla_decoder(decoder_queries, refpoints_sigmoid, box_logits, edpose_out)
         
     def forward_deformable_decoder(self, decoder_queries, refpoints_sigmoid, edpose_out):
         hs, references = self.decoder(
@@ -167,11 +211,15 @@ class EdPoseClassifier(nn.Module):
         )
         return hs, references
 
-    def forward_vanilla_decoder(self, decoder_queries, edpose_out):
+    def forward_vanilla_decoder(self, decoder_queries, queries_ref, box_logits, edpose_out):
         # print(decoder_queries.transpose(0, 1).shape, edpose_out["memory"].transpose(0, 1).shape)
+        decoder_queries = self.inject_class_information(decoder_queries, box_logits)
+        memory = edpose_out["memory"].detach() if not self.finetune_edpose else edpose_out["memory"]
+        pos_embeddings_transformed = self.pos_embedding_proj(queries_ref)
+        decoder_queries = decoder_queries + pos_embeddings_transformed
         hs = self.decoder(
             tgt=decoder_queries.transpose(0, 1), 
-            memory=edpose_out["memory"].transpose(0, 1), 
+            memory=memory.transpose(0, 1), 
             memory_key_padding_mask=edpose_out["memory_key_padding_mask"], 
             # pos=edpose_out["pos"].transpose(0, 1)
         )
@@ -198,17 +246,19 @@ class EdPoseClassifier(nn.Module):
         else:
             edpose_out = self.edpose_model(samples, targets)
         
-        dn_queries, match_queries, dn_ref, match_ref = self.extract_layer_output(edpose_out, -1) # last layer output
-        # detach the tensors
-        # dn_queries = dn_queries.clone()
-        # match_queries = match_queries.clone()
-        # dn_ref = dn_ref.clone()
-        # match_ref = match_ref.clone()
+        dn_queries, dn_logits, match_queries, match_logits, dn_ref, match_ref = self.extract_layer_output(edpose_out, -1)
+        # layer_hs_bbox_dn, dn_class_logits, layer_hs_final_norm, box_class_logits, layer_ref_bbox_dn, layer_ref_final_norm
 
-        decoder_queries = torch.cat((dn_queries, match_queries), dim=1)
-        decoder_ref = torch.cat((dn_ref, match_ref), dim=1)
+        if dn_ref is not None:
+            decoder_queries = torch.cat((dn_queries, match_queries), dim=1)
+            decoder_ref = torch.cat((dn_ref, match_ref), dim=1)
+            box_logits = torch.cat((dn_logits, match_logits), dim=1)
+            hs, _ = self.forward_decoder(decoder_queries, decoder_ref, box_logits, edpose_out)
+
+        else:
+            hs, _ = self.forward_decoder(match_queries, match_ref, match_logits, edpose_out)
+
         # # forward to the decoder
-        hs, _ = self.forward_decoder(decoder_queries, decoder_ref, edpose_out)
         pred_class_logits = self.class_embed(hs)
         edpose_out = update_classification_information(edpose_out, pred_class_logits, aux_loss=False)
         return edpose_out
@@ -241,8 +291,15 @@ def build_classifier(args):
     if args.classifier_use_deformable:
         decoder = build_deformable_decoder(args)
     else:
-        decoder_layer = nn.TransformerDecoderLayer(d_model=args.hidden_dim, nhead=args.nheads)
+        decoder_layer = nn.TransformerDecoderLayer(
+            d_model=args.hidden_dim, 
+            nhead=args.nheads, 
+            dim_feedforward=4 * args.hidden_dim,  # Standard setting for transformer models
+            dropout=0.1,  # Explicit dropout for regularization
+            activation="relu"
+        )
         decoder = nn.TransformerDecoder(decoder_layer, num_layers=args.classifier_decoder_layers)
+    
     model = EdPoseClassifier(edpose_model, decoder, args.num_classes, 
                             d_model=args.hidden_dim, 
                             dn_number=0 if args.no_dn else args.dn_number,

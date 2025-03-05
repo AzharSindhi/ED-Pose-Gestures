@@ -13,4 +13,4 @@ timm
 mlflow
 opencv-python
 yapf==0.40.1
--U numpy==1.26.4
+numpy==1.21.4
