@@ -99,6 +99,10 @@ def get_args_parser():
     parser.add_argument("--classifier_decoder_return_intermediate", action='store_true', help="return intermediate outputs from classifier decoder")
     parser.add_argument("--classifier_use_deformable", action='store_true', help="use deformable DETR for classifier, otherwise the Vanilla decoder will be used")
     parser.add_argument("--classifier_decoder_layers", type=int, default=2, help="number of decoder layers for classifier")
+    parser.add_argument("--use_cls_token", action='store_true', help="use class token for classifier")
+    parser.add_argument("--use_clip_prior", action='store_true', help="use class token for classifier")
+    parser.add_argument("--use_class_prior", action='store_true', help="use class token for classifier")
+    parser.add_argument("--queries_transform", action='store_true', help="use class token for classifier")
 
     return parser
 
@@ -216,6 +220,12 @@ def main(args):
     # np.random.seed(seed)
     # random.seed(seed)
 
+    dataset_train = build_dataset(image_set='train', args=args)
+    dataset_val = build_dataset(image_set='val', args=args)
+    # dataset_test = build_dataset(image_set='test', args=args)
+    imset = "val"
+    args.class_names = dataset_train.class_names
+
     # build model
     model, criterion, postprocessors = build_model_main(args)
     wo_class_error = False
@@ -240,11 +250,6 @@ def main(args):
 
     optimizer = torch.optim.AdamW(param_dicts, lr=args.lr,
                                   weight_decay=args.weight_decay)
-
-    dataset_train = build_dataset(image_set='train', args=args)
-    dataset_val = build_dataset(image_set='val', args=args)
-    # dataset_test = build_dataset(image_set='test', args=args)
-    imset = "val"
 
 
     if args.distributed:
@@ -339,15 +344,20 @@ def main(args):
 
         else:
             os.environ['EVAL_FLAG'] = 'TRUE'
-            val_stats, val_coco_evaluator = evaluate(model, criterion, postprocessors,
-                                                  data_loader_val, base_ds, device, args.output_dir, wo_class_error=wo_class_error, args=args, img_set=imset)
+            val_stats, val_coco_evaluator, predictions_json_box, predictions_json_kps = evaluate(model, criterion, postprocessors,
+                                                  data_loader_test, base_ds, device, args.output_dir, wo_class_error=wo_class_error, args=args, img_set="test")
             if args.output_dir:
                 utils.save_on_master(val_coco_evaluator.coco_eval["bbox"].eval, output_dir / "eval.pth")
 
             log_stats = {**{f'test_{k}': v for k, v in val_stats.items()} }
+            
             if args.output_dir and utils.is_main_process():
                 with (output_dir / "log.txt").open("a") as f:
                     f.write(json.dumps(log_stats) + "\n")
+                with open(os.path.join(output_dir, 'bbox_predictions_test.json'), 'w') as f:
+                    json.dump(predictions_json_box, f)
+                with open(os.path.join(output_dir, 'keypoints_predictions_test.json'), 'w') as f:
+                    json.dump(predictions_json_kps, f)
             return
 
     args.optimizer = str(optimizer)

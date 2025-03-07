@@ -84,6 +84,10 @@ class CocoDetection(torch.utils.data.Dataset):
                 self.all_imgIds = []
                 for image_id in imgIds:
                     self.all_imgIds.append(image_id)
+        # get category names
+        cat_ids = self.coco.getCatIds()
+        cats = self.coco.loadCats(cat_ids)
+        self.class_names = [cat['name'] for cat in cats]
 
     def __len__(self):
         return len(self.all_imgIds)

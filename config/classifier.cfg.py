@@ -112,3 +112,10 @@ num_group = 100
 num_box_decoder_layers = 2
 no_mmpose_keypoint_evaluator = True
 strong_aug=False
+
+# for classifier
+clip_weight = 1.0
+cls_prior_weight = 0.0
+cls_weight = 1.0
+box_weight = 1.0
+kpts_weight = 1.0

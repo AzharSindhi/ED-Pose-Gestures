@@ -68,7 +68,7 @@ do
     run_name="lr${LR}_wd${WEIGHT_DECAY}_lrd${LR_DROP}_ng${NUM_GROUP}_dn${DN_NUMBER}_orig"
     #  --edpose_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
     # --edpose_model_path logs/edpose_finetune0/all_coco/checkpoint.pth
-    command="torchrun --nproc_per_node=4 --master_port=$CURRENT_PORT main.py --config_file config/edpose.cfg.py --edpose_model_path logs/edpose_finetune0/all_coco/checkpoint.pth --edpose_finetune_ignore class_embed. \
+    command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py --config_file config/edpose.cfg.py --edpose_model_path logs/edpose_finetune0/all_coco/checkpoint.pth --edpose_finetune_ignore class_embed. \
         --output_dir logs/test_runs_classifier_full_detclone_notran_cls/classifier0/all_coco/ \
         --options modelname=classifier num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
         set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
@@ -76,7 +76,9 @@ do
         --fix_size \
         --find_unused_params \
         --seperate_classifier \
-        --classifier_type partial \
+        --seperate_token_for_class \
+        --classifier_type full \
+        --use_cls_token \
         --finetune_edpose \
         --note $run_name"
     commands+=("$command")
