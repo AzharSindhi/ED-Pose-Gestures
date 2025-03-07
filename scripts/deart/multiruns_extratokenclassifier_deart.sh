@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --time=15:00:00
 #SBATCH --job-name=deart_finetunes
-#SBATCH --gres=gpu:a100:4
-#SBATCH --partition=a100
+#SBATCH --gres=gpu:a40:4
+#SBATCH --partition=a40
 #SBATCH --array=0-5  # Adjust based on the number of experiments
 #SBATCH --output=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_out.txt
 #SBATCH --error=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_err.txt
@@ -214,6 +214,7 @@ done
 
 # logs/multiruns_deart_03_03/extratoken1/all_coco/checkpoint.pth
 #--edpose_model_path logs/multiruns_vcoco_01_03/extratoken1/all_coco/checkpoint.pth
+#logs/pascal_04_03/extratoken1/all_coco/checkpoint.pth
 # submit the jobs to slurm
-# srun ${commands[$SLURM_ARRAY_TASK_ID]}
-eval ${commands[0]}
+srun ${commands[$SLURM_ARRAY_TASK_ID]}
+# eval ${commands[0]}

@@ -2,7 +2,7 @@
 #SBATCH --time=08:00:00
 #SBATCH --job-name=pascal_ex
 #SBATCH --gres=gpu:a40:4
-#SBATCH --array=0-2
+#SBATCH --array=0-5
 #SBATCH --output=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_out.txt
 #SBATCH --error=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_err.txt
 
@@ -74,6 +74,7 @@ readonly STAGING_DIR="/tmp/$USER-$JOB_CLASS"
 
 
 export EDPOSE_COCO_PATH=$STAGING_DIR/pascal_voc_actions_coco
+
 PORT=55144
 
 for ((i=0; i<N; i++))
