@@ -70,67 +70,66 @@ readonly STAGING_DIR="/tmp/$USER-$JOB_CLASS"
   fi
 )
 echo "finished copying"
+N=1
+PORT=33142
 
-# PORT=33142
-
-# for ((i=0; i<N; i++))
-# do
-#     # export EDPOSE_COCO_PATH=$WORK_DIR/stratified_folds_unique_margin_8_n5/fold_$i
-#     # add + i
-#     CURRENT_PORT=$((PORT + i))
-#     run_name="lr${LR}_wd${WEIGHT_DECAY}_ng${NUM_GROUP}_dn${DN_NUMBER}_full_vanilla_noextra"
-#     # Run the command with the random values and add it to the commands array
-#     command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py  --seperate_classifier --classifier_type full --config_file config/edpose.cfg.py --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
-#         --output_dir logs/multiruns_sensory_27_02/vanilla_full_noextra$i/all_coco/ \
-#         --options modelname=classifier num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
-#         set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
-#         --dataset_file=coco --find_unused_params \
-#         --finetune_edpose \
-#         --fix_size \
-#         --note $run_name"
-    
-#     commands+=("$command")
-
-# done
-
-# PORT=22142
-# for ((i=0; i<N; i++))
-# do
-#     CURRENT_PORT=$((PORT + i))
-#     run_name="lr${LR}_wd${WEIGHT_DECAY}_ng${NUM_GROUP}_dn${DN_NUMBER}_extratoken"
-#     # Run the command with the random values and add it to the commands array
-#     # -m torch.distributed.launch --nproc_per_node=1 
-#     command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py --seperate_token_for_class --config_file config/edpose.cfg.py --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
-#         --output_dir logs/multiruns_sensory_27_02/extratoken_finetune$i/all_coco/ \
-#         --options modelname=edpose num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
-#         set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
-#         --dataset_file=coco \
-#         --finetune_edpose \
-#         --fix_size \
-#         --find_unused_params \
-#         --note $run_name"
-    
-#     commands+=("$command")
-# done
-
-PORT=33144
 
 for ((i=0; i<N; i++))
 do
-    # add + i
-    CURRENT_PORT=$((PORT + i))
-  
-    # # Create a run name with the combination of defined LR, weight_decay, num_group, etc.
-    run_name="lr${LR}_wd${WEIGHT_DECAY}_lrd${LR_DROP}_ng${NUM_GROUP}_dn${DN_NUMBER}_orig"
+    CURRENT_PORT=$((PORT + 6))
+    run_name="lr${LR}_wd${WEIGHT_DECAY}_ng${NUM_GROUP}_dn${DN_NUMBER}_full_deformable_withextra_original_finetune"
+    # Run the command with the random values and add it to the commands array
+    command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py --config_file config/edpose.cfg.py \
+        --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
+        --output_dir logs/exps_extratokenclassifier_07_03_sensory/full_deformable_withextra_original_finetune$i/all_coco/ \
+        --options modelname=classifier num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
+        set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
+        --dataset_file=coco \
+        --find_unused_params \
+        --fix_size \
+        --seperate_classifier  \
+        --classifier_type full \
+        --classifier_decoder_layers 6 \
+        --classifier_use_deformable \
+        --seperate_token_for_class \
+        --finetune_edpose \
+        --note $run_name"
+    
+    commands+=("$command")
 
-    command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py --config_file config/edpose.cfg.py --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
-        --output_dir logs/multiruns_sensory_27_02/edpose_finetune$i/all_coco/ \
+    CURRENT_PORT=$((PORT + 7))
+    run_name="lr${LR}_wd${WEIGHT_DECAY}_ng${NUM_GROUP}_dn${DN_NUMBER}_full_vanilla_withextra_original"
+    # Run the command with the random values and add it to the commands array
+    command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py --config_file config/edpose.cfg.py \
+        --edpose_model_path ./models/edpose_r50_coco.pth --edpose_finetune_ignore class_embed. \
+        --output_dir logs/exps_extratokenclassifier_07_03_sensory/full_vanilla_withextra_original_clip$i/all_coco/ \
+        --options modelname=classifier num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
+        set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
+        --dataset_file=coco \
+        --find_unused_params \
+        --seperate_classifier  \
+        --fix_size \
+        --classifier_type full \
+        --classifier_decoder_layers 6 \
+        --seperate_token_for_class \
+        --finetune_edpose \
+        --note $run_name"
+    
+    commands+=("$command")
+
+    CURRENT_PORT=$((PORT + 7))
+    run_name="lr${LR}_wd${WEIGHT_DECAY}_ng${NUM_GROUP}_dn${DN_NUMBER}_full_original"
+    # Run the command with the random values and add it to the commands array
+    command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py --config_file config/edpose.cfg.py \
+        --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
+        --output_dir logs/exps_extratokenclassifier_07_03_sensory/original_edpose$i/all_coco/ \
         --options modelname=edpose num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
         set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
         --dataset_file=coco \
-        --fix_size \
         --find_unused_params \
+        --fix_size \
         --note $run_name"
+    
     commands+=("$command")
 
 done
@@ -138,6 +137,6 @@ done
 
 # total is length of commands divided by N (should be integer)
 # total=$(( ${#commands[@]} / N ))
-current_fold_num=$SLURM_ARRAY_TASK_ID #$((SLURM_ARRAY_TASK_ID % total))
+current_fold_num=2 #$SLURM_ARRAY_TASK_ID #$((SLURM_ARRAY_TASK_ID % total))
 export EDPOSE_COCO_PATH=$STAGING_DIR/stratified_folds_unique_margin_8_n5/fold_$current_fold_num
-srun ${commands[$SLURM_ARRAY_TASK_ID]}
+eval ${commands[$SLURM_ARRAY_TASK_ID]}

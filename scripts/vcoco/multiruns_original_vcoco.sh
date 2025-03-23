@@ -3,7 +3,6 @@
 #SBATCH --job-name=multirun_original
 #SBATCH --gres=gpu:40:4
 #SBATCH --partition=a40
-#SBATCH --array=0-1  # Adjust based on the number of experiments
 #SBATCH --output=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_out.txt
 #SBATCH --error=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_err.txt
 
@@ -41,7 +40,7 @@ BS=4
 N_CLASSES=22
 # Create a run name with the combination of defined LR, weight_decay, num_group, etc.
 commands=()
-N=2
+N=1
 
 readonly JOB_CLASS="vcoco"
 readonly STAGING_DIR="/tmp/$USER-$JOB_CLASS"
@@ -135,5 +134,5 @@ do
 done
 
 # submit the jobs to slurm
-srun ${commands[$SLURM_ARRAY_TASK_ID]}
-# eval ${commands[0]}
+# srun ${commands[$SLURM_ARRAY_TASK_ID]}
+eval ${commands[0]}

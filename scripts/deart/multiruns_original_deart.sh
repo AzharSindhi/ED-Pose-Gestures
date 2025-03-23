@@ -1,9 +1,8 @@
 #!/bin/bash
 #SBATCH --time=15:00:00
 #SBATCH --job-name=dearto
-#SBATCH --gres=gpu:a100:4
-#SBATCH --partition=a100
-#SBATCH --array=0-2  # Adjust based on the number of experiments
+#SBATCH --gres=gpu:a40:4
+#SBATCH --partition=a40
 #SBATCH --output=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_out.txt
 #SBATCH --error=/home/atuin/b193dc/b193dc14/mywork/ED-Pose-Gestures/slurm_logs/%x_%j_err.txt
 
@@ -75,8 +74,10 @@ readonly STAGING_DIR="/tmp/$USER-$JOB_CLASS"
 
 
 export EDPOSE_COCO_PATH=$STAGING_DIR/deArt_coco
-PORT=33144
 
+
+PORT=33144
+N=1
 for ((i=0; i<N; i++))
 do
     # add + i
@@ -87,7 +88,7 @@ do
 
     # Run the command with the random values and add it to the commands array
     command="torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py --config_file config/edpose.cfg.py --pretrain_model_path ./models/edpose_r50_coco.pth --finetune_ignore class_embed. \
-        --output_dir logs/multiruns_deart_03_03/edpose_finetune$i/all_coco/ \
+        --output_dir logs/exps_extratokenclassifier_07_03_deArt/edpose_finetune$i/all_coco/ \
         --options modelname=edpose num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
         set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER num_queries=$N_QUERIES num_group=$NUM_GROUP \
         --dataset_file=coco \
@@ -99,5 +100,5 @@ do
 done
 
 # submit the jobs to slurm
-srun ${commands[$SLURM_ARRAY_TASK_ID]}
-# eval ${commands[0]}
+# srun ${commands[$SLURM_ARRAY_TASK_ID]}
+eval ${commands[0]}
