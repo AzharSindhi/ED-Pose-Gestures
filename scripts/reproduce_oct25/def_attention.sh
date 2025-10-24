@@ -101,7 +101,7 @@ CURRENT_PORT=$((44144+${SLURM_ARRAY_TASK_ID}))
 
 torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py \
         --seperate_classifier --classifier_type full --config_file config/edpose.cfg.py \
-        --seperate-token-per-class \
+        --seperate_token_for_class \
         --classifier_use_deformable \
         --edpose_model_path /home/atuin/b268dc/b268dc10/models/EDPose-R50.pth \
         --edpose_finetune_ignore class_embed. \
