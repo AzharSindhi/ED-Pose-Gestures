@@ -2,7 +2,8 @@ import os
 import json
 
 # Paths to COCO annotations
-coco_dir = "../datasets/stratified_folds_unique_margin_8_n5/fold_0/annotations"
+# coco_dir = "../datasets/stratified_folds_unique_margin_8_n5/fold_0/annotations"
+coco_dir = "/media/backup/hpc/b193dc10/b193dc10/mywork/datasets/stratified_folds_unique_margin_8_n5/fold_0/annotations"
 train_ann = os.path.join(coco_dir, "person_keypoints_train2017.json")
 val_ann = os.path.join(coco_dir, "person_keypoints_val2017.json")
 test_ann = os.path.join(coco_dir, "person_keypoints_test2017.json")  # If available

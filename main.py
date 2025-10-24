@@ -361,126 +361,126 @@ def main(args):
             return
 
     args.optimizer = str(optimizer)
-    experiment, run_name = set_mlflow_run(args, output_dir_path)
+    # experiment, run_name = set_mlflow_run(args, output_dir_path)
     print("Start training")
     start_time = time.time()
     best_map_holder = BestMetricHolder(use_ema=args.use_ema)
-    mlflow.set_experiment(experiment)
-    with mlflow.start_run(run_name=run_name):
+    # mlflow.set_experiment(experiment)
+    # with mlflow.start_run(run_name=run_name):
         # mlflow.set_tag("mlflow.runName", f"{run_name}")
-        mlflow.log_params(vars(args))
-        for epoch in range(args.start_epoch, args.epochs):
-            epoch_start_time = time.time()
-            if args.distributed:
-                sampler_train.set_epoch(epoch)
-            train_stats = train_one_epoch(
-                model, criterion, data_loader_train, optimizer, device, epoch,
-                args.clip_max_norm, wo_class_error=wo_class_error, lr_scheduler=lr_scheduler, args=args, logger=(logger if args.save_log else None), ema_m=ema_m)
-            if args.output_dir:
-                checkpoint_paths = [output_dir / 'checkpoint.pth']
+        # mlflow.log_params(vars(args))
+    for epoch in range(args.start_epoch, args.epochs):
+        epoch_start_time = time.time()
+        if args.distributed:
+            sampler_train.set_epoch(epoch)
+        train_stats = train_one_epoch(
+            model, criterion, data_loader_train, optimizer, device, epoch,
+            args.clip_max_norm, wo_class_error=wo_class_error, lr_scheduler=lr_scheduler, args=args, logger=(logger if args.save_log else None), ema_m=ema_m)
+        if args.output_dir:
+            checkpoint_paths = [output_dir / 'checkpoint.pth']
 
-            if not args.onecyclelr:
-                lr_scheduler.step()
-            if args.output_dir:
-                checkpoint_paths = [output_dir / 'checkpoint.pth']
-                # extra checkpoint before LR drop and every 100 epochs
-                # if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % args.save_checkpoint_interval == 0:
-                #     checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
-                for checkpoint_path in checkpoint_paths:
-                    weights = {
-                        'model': model_without_ddp.state_dict(),
-                        'optimizer': optimizer.state_dict(),
-                        'lr_scheduler': lr_scheduler.state_dict(),
-                        'epoch': epoch,
-                        'args': args,
-                    }
-                    if args.use_ema:
-                        weights.update({
-                            'ema_model': ema_m.module.state_dict(),
-                        })
-                    utils.save_on_master(weights, checkpoint_path)
-                    
-            # val
-            val_stats, val_coco_evaluator, predictions_json_box, predictions_json_kps = evaluate(
-                model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
-                wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None), img_set=imset
-            )
-            #test
-            # test_stats, test_coco_evaluator = evaluate(
-            #     model, criterion, postprocessors, data_loader_test, base_ds, device, args.output_dir,
-            #     wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None),
-            #                                                       img_set="test"
-            # )
-            map_regular = val_stats["coco_eval_keypoints_detr"][0]
-            _isbest = best_map_holder.update(map_regular, epoch, is_ema=False)
-            if _isbest:
-                with open(os.path.join(output_dir, 'bbox_predictions.json'), 'w') as f:
-                    json.dump(predictions_json_box, f)
-                with open(os.path.join(output_dir, 'keypoints_predictions.json'), 'w') as f:
-                    json.dump(predictions_json_kps, f)
-                checkpoint_path = output_dir / 'checkpoint_best_regular.pth'
-                utils.save_on_master({
+        if not args.onecyclelr:
+            lr_scheduler.step()
+        if args.output_dir:
+            checkpoint_paths = [output_dir / 'checkpoint.pth']
+            # extra checkpoint before LR drop and every 100 epochs
+            # if (epoch + 1) % args.lr_drop == 0 or (epoch + 1) % args.save_checkpoint_interval == 0:
+            #     checkpoint_paths.append(output_dir / f'checkpoint{epoch:04}.pth')
+            for checkpoint_path in checkpoint_paths:
+                weights = {
                     'model': model_without_ddp.state_dict(),
                     'optimizer': optimizer.state_dict(),
                     'lr_scheduler': lr_scheduler.state_dict(),
                     'epoch': epoch,
                     'args': args,
-                }, checkpoint_path)
-            log_stats = {
-                **{f'train_{k}': v for k, v in train_stats.items()},
-                **{f'val_{k}': v for k, v in val_stats.items()},
-                # **{f'test_{k}': v for k, v in test_stats.items()},
-            }
-            log_metric_to_mlflow(log_stats)
-
-            # eval ema
-            if args.use_ema:
-                ema_val_stats, ema_val_coco_evaluator = evaluate(
-                    ema_m.module, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
-                    wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None), img_set=imset
-                )
-                log_stats.update({f'ema_test_{k}': v for k,v in ema_val_stats.items()})
-                map_ema = ema_val_stats['coco_eval_keypoints_detr'][0]
-                _isbest = best_map_holder.update(map_ema, epoch, is_ema=True)
-                if _isbest:
-                    checkpoint_path = output_dir / 'checkpoint_best_ema.pth'
-                    utils.save_on_master({
-                        'model': ema_m.module.state_dict(),
-                        'optimizer': optimizer.state_dict(),
-                        'lr_scheduler': lr_scheduler.state_dict(),
-                        'epoch': epoch,
-                        'args': args,
-                    }, checkpoint_path)
-            log_stats.update(best_map_holder.summary())
-
-            ep_paras = {
-                    'epoch': epoch,
-                    'n_parameters': n_parameters
                 }
-            log_stats.update(ep_paras)
-            try:
-                log_stats.update({'now_time': str(datetime.datetime.now())})
-            except:
-                pass
+                if args.use_ema:
+                    weights.update({
+                        'ema_model': ema_m.module.state_dict(),
+                    })
+                utils.save_on_master(weights, checkpoint_path)
+                
+        # val
+        val_stats, val_coco_evaluator, predictions_json_box, predictions_json_kps = evaluate(
+            model, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
+            wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None), img_set=imset
+        )
+        #test
+        # test_stats, test_coco_evaluator = evaluate(
+        #     model, criterion, postprocessors, data_loader_test, base_ds, device, args.output_dir,
+        #     wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None),
+        #                                                       img_set="test"
+        # )
+        map_regular = val_stats["coco_eval_keypoints_detr"][0]
+        _isbest = best_map_holder.update(map_regular, epoch, is_ema=False)
+        if _isbest:
+            with open(os.path.join(output_dir, 'bbox_predictions.json'), 'w') as f:
+                json.dump(predictions_json_box, f)
+            with open(os.path.join(output_dir, 'keypoints_predictions.json'), 'w') as f:
+                json.dump(predictions_json_kps, f)
+            checkpoint_path = output_dir / 'checkpoint_best_regular.pth'
+            utils.save_on_master({
+                'model': model_without_ddp.state_dict(),
+                'optimizer': optimizer.state_dict(),
+                'lr_scheduler': lr_scheduler.state_dict(),
+                'epoch': epoch,
+                'args': args,
+            }, checkpoint_path)
+        log_stats = {
+            **{f'train_{k}': v for k, v in train_stats.items()},
+            **{f'val_{k}': v for k, v in val_stats.items()},
+            # **{f'test_{k}': v for k, v in test_stats.items()},
+        }
+        log_metric_to_mlflow(log_stats)
 
-            epoch_time = time.time() - epoch_start_time
-            epoch_time_str = str(datetime.timedelta(seconds=int(epoch_time)))
-            log_stats['epoch_time'] = epoch_time_str
+        # eval ema
+        if args.use_ema:
+            ema_val_stats, ema_val_coco_evaluator = evaluate(
+                ema_m.module, criterion, postprocessors, data_loader_val, base_ds, device, args.output_dir,
+                wo_class_error=wo_class_error, args=args, logger=(logger if args.save_log else None), img_set=imset
+            )
+            log_stats.update({f'ema_test_{k}': v for k,v in ema_val_stats.items()})
+            map_ema = ema_val_stats['coco_eval_keypoints_detr'][0]
+            _isbest = best_map_holder.update(map_ema, epoch, is_ema=True)
+            if _isbest:
+                checkpoint_path = output_dir / 'checkpoint_best_ema.pth'
+                utils.save_on_master({
+                    'model': ema_m.module.state_dict(),
+                    'optimizer': optimizer.state_dict(),
+                    'lr_scheduler': lr_scheduler.state_dict(),
+                    'epoch': epoch,
+                    'args': args,
+                }, checkpoint_path)
+        log_stats.update(best_map_holder.summary())
 
-            if args.output_dir and utils.is_main_process():
-                with (output_dir / "log.txt").open("a") as f:
-                    f.write(json.dumps(log_stats) + "\n")
+        ep_paras = {
+                'epoch': epoch,
+                'n_parameters': n_parameters
+            }
+        log_stats.update(ep_paras)
+        try:
+            log_stats.update({'now_time': str(datetime.datetime.now())})
+        except:
+            pass
 
-                # for evaluation logs
-                if val_coco_evaluator is not None:
-                    (output_dir / 'eval').mkdir(exist_ok=True)
-                    if "bbox" in val_coco_evaluator.coco_eval:
-                        filenames = ['latest.pth']
-                        if epoch % 50 == 0:
-                            filenames.append(f'{epoch:03}.pth')
-                        for name in filenames:
-                            torch.save(val_coco_evaluator.coco_eval["bbox"].eval,
-                                    output_dir / "eval" / name)
+        epoch_time = time.time() - epoch_start_time
+        epoch_time_str = str(datetime.timedelta(seconds=int(epoch_time)))
+        log_stats['epoch_time'] = epoch_time_str
+
+        if args.output_dir and utils.is_main_process():
+            with (output_dir / "log.txt").open("a") as f:
+                f.write(json.dumps(log_stats) + "\n")
+
+            # for evaluation logs
+            if val_coco_evaluator is not None:
+                (output_dir / 'eval').mkdir(exist_ok=True)
+                if "bbox" in val_coco_evaluator.coco_eval:
+                    filenames = ['latest.pth']
+                    if epoch % 50 == 0:
+                        filenames.append(f'{epoch:03}.pth')
+                    for name in filenames:
+                        torch.save(val_coco_evaluator.coco_eval["bbox"].eval,
+                                output_dir / "eval" / name)
     total_time = time.time() - start_time
     total_time_str = str(datetime.timedelta(seconds=int(total_time)))
     print('Training time {}'.format(total_time_str))
