@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #SBATCH --time=04:00:00
-#SBATCH --job-name=ed_actionpose_extratoken
+#SBATCH --job-name=tokenonly
 #SBATCH --gres=gpu:a100:4
 #SBATCH --array=0-4 # Adjust based on the number of experiments
 #SBATCH --output=/home/atuin/b268dc/b268dc10/logs/ed-actionpose/reproduction/%x_%j_%a.txt

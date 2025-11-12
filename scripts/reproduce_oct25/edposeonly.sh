@@ -1,6 +1,6 @@
 #!/bin/bash -l
 #SBATCH --time=04:00:00
-#SBATCH --job-name=ed_actionpose_def
+#SBATCH --job-name=edpose
 #SBATCH --gres=gpu:a100:4
 #SBATCH --array=0-4 # Adjust based on the number of experiments
 #SBATCH --output=/home/atuin/b268dc/b268dc10/logs/ed-actionpose/reproduction/%x_%j_%a.txt
@@ -100,12 +100,11 @@ N_CLASSES=17
 CURRENT_PORT=$((44144+${SLURM_ARRAY_TASK_ID}))
 
 torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py \
-        --seperate_classifier --classifier_type full --config_file config/edpose.cfg.py \
-        --classifier_use_deformable \
+        --config_file config/edpose.cfg.py \
         --edpose_model_path /home/atuin/b268dc/b268dc10/models/EDPose-R50.pth \
         --edpose_finetune_ignore class_embed. \
         --output_dir ${WORK_DIR}/output/ \
-        --options modelname=classifier \
+        --options modelname=edpose \
             num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP \
             lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
             set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER \
@@ -115,13 +114,14 @@ torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.p
         --fix_size \
         --find_unused_params 
 
-TARGET_WORKDIR="$WORK/work_dirs/ed_actionpose/deformable/${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
+TARGET_WORKDIR="$WORK/work_dirs/ed_actionpose/edpose/${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
 echo "Training finished, start copying results to ${TARGET_WORKDIR}"
 
 # COPY ANNOTATIONS FILES TO MAP CROSSVAL SPLIT
 cp ../data/annotations/person_keypoints_train2017.json ${WORK_DIR}/output/
 cp ../data/annotations/person_keypoints_val2017.json ${WORK_DIR}/output/
 cp ../data/annotations/person_keypoints_test2017.json ${WORK_DIR}/output/
+
 
 
 # COPY OUTPUT TO $WORK
