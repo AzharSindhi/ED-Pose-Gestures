@@ -2,9 +2,9 @@
 #SBATCH --time=04:00:00
 #SBATCH --job-name=tokenonly
 #SBATCH --gres=gpu:a100:4
-#SBATCH --array=0-4 # Adjust based on the number of experiments
-#SBATCH --output=/home/atuin/b268dc/b268dc10/logs/ed-actionpose/reproduction/%x_%j_%a.txt
-#SBATCH --error=/home/atuin/b268dc/b268dc10/logs/ed-actionpose/reproduction/%x_%j_%a.txt
+#SBATCH --array=0-4 
+#SBATCH --output=/home/atuin/b268dc/b268dc10/logs/ed-actionpose/reproduction/%x_%a_%j.txt
+#SBATCH --error=/home/atuin/b268dc/b268dc10/logs/ed-actionpose/reproduction/%x_%a_%j.txt
 
 set -e
 
@@ -103,7 +103,6 @@ torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.p
         --seperate_token_for_class \
         --config_file config/edpose.cfg.py \
         --edpose_model_path /home/atuin/b268dc/b268dc10/models/EDPose-R50.pth \
-        --edpose_finetune_ignore class_embed. \
         --output_dir ${WORK_DIR}/output/ \
         --options modelname=edpose \
             num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP \
@@ -115,7 +114,7 @@ torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.p
         --fix_size \
         --find_unused_params 
 
-TARGET_WORKDIR="$WORK/work_dirs/ed_actionpose/tokenonly/${SLURM_JOB_ID}_${SLURM_ARRAY_TASK_ID}"
+TARGET_WORKDIR="$WORK/work_dirs/ed_actionpose/tokenonly/${SLURM_ARRAY_TASK_ID}_${SLURM_JOB_ID}"
 echo "Training finished, start copying results to ${TARGET_WORKDIR}"
 
 # COPY ANNOTATIONS FILES TO MAP CROSSVAL SPLIT

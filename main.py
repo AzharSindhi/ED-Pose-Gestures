@@ -431,7 +431,7 @@ def main(args):
             **{f'val_{k}': v for k, v in val_stats.items()},
             # **{f'test_{k}': v for k, v in test_stats.items()},
         }
-        log_metric_to_mlflow(log_stats)
+        # log_metric_to_mlflow(log_stats)
 
         # eval ema
         if args.use_ema:

@@ -1,10 +1,10 @@
 #!/bin/bash -l
-#SBATCH --time=01:00:00
-#SBATCH --job-name=edpose_single
-#SBATCH --gres=gpu:a100:4
-#SBATCH --array=0
-#SBATCH --output=/home/atuin/b268dc/b268dc10/logs/ed-actionpose/reproduction/%x_%a_%j.txt
-#SBATCH --error=/home/atuin/b268dc/b268dc10/logs/ed-actionpose/reproduction/%x_%a_%j.txt
+#SBATCH --time=00:30:00
+#SBATCH --job-name=full_def_test
+#SBATCH --gres=gpu:a40:1
+#SBATCH --array=0-4 # Adjust based on the number of experiments
+#SBATCH --output=/home/atuin/b268dc/b268dc10/logs/ed-actionpose/reproduction/test/%x_%j_%a.txt
+#SBATCH --error=/home/atuin/b268dc/b268dc10/logs/ed-actionpose/reproduction/test/%x_%j_%a.txt
 
 set -e
 
@@ -41,7 +41,13 @@ echo "[$(date)] Data successfully copied."
 
 export EDPOSE_COCO_PATH=${TARGET_DATA}
 
-source "/home/atuin/${GROUP}/${USER}/venvs/edpose/bin/activate"
+# COPY ENV TO COMPUTE NODE
+# avoids race condition in MSDA compilation when using shared venv
+readonly TARGET_ENV=${TARGET_PATH}/venv
+mkdir -p "${TARGET_ENV}"
+tar xf "/home/atuin/$GROUP/$USER/venvs/edpose.tar" -C ${TARGET_ENV}
+source ${TARGET_ENV}/edpose/bin/activate
+# source "/home/atuin/${GROUP}/${USER}/venvs/edpose/bin/activate"
 
 python - <<'PY'
 import json, sys, time
@@ -84,7 +90,7 @@ exec > >(tee -a "$LOG_FILE") 2>&1
 echo "Logging console output to: $LOG_FILE"
 
 
-epoch=50
+epoch=200
 LR=0.0001
 WEIGHT_DECAY=0.01
 LR_DROP=30
@@ -99,11 +105,18 @@ N_CLASSES=17
 
 CURRENT_PORT=$((44144+${SLURM_ARRAY_TASK_ID}))
 
-torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py \
-        --config_file config/edpose.cfg.py \
-        --edpose_model_path /home/atuin/b268dc/b268dc10/models/EDPose-R50.pth \
+MODELS_PATH=$WORK/work_dirs/ed_actionpose/full_deformable/${SLURM_ARRAY_TASK_ID}/work_dir/output/checkpoint_best_regular.pth
+# MODELS_PATH=$WORK/work_dirs/ed_actionpose/full_classifier/${SLURM_ARRAY_TASK_ID}/work_dir/output/checkpoint.pth
+
+torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT test.py \
+        --seperate_token_for_class \
+        --eval \
+        --classifier_type full --config_file config/edpose.cfg.py \
+        --classifier_use_deformable \
+        --pretrain_model_path $MODELS_PATH \
+        --edpose_finetune_ignore class_embed. \
         --output_dir ${WORK_DIR}/output/ \
-        --options modelname=edpose \
+        --options modelname=classifier \
             num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP \
             lr=$LR weight_decay=$WEIGHT_DECAY lr_backbone=1e-05 num_body_points=17 backbone=resnet50 \
             set_cost_class=2.0 cls_loss_coef=2.0 use_dn=True dn_number=$DN_NUMBER \
@@ -113,15 +126,15 @@ torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.p
         --fix_size \
         --find_unused_params 
 
-TARGET_WORKDIR="$WORK/work_dirs/ed_actionpose/edpose/${SLURM_ARRAY_TASK_ID}_${SLURM_JOB_ID}"
-echo "Training finished, start copying results to ${TARGET_WORKDIR}"
+
+
+TARGET_WORKDIR="$WORK/work_dirs/ed_actionpose/full_deformable/test/${SLURM_ARRAY_TASK_ID}"
+echo "Testing finished, start copying results to ${TARGET_WORKDIR}"
 
 # COPY ANNOTATIONS FILES TO MAP CROSSVAL SPLIT
 cp ../data/annotations/person_keypoints_train2017.json ${WORK_DIR}/output/
 cp ../data/annotations/person_keypoints_val2017.json ${WORK_DIR}/output/
 cp ../data/annotations/person_keypoints_test2017.json ${WORK_DIR}/output/
-
-
 
 # COPY OUTPUT TO $WORK
 mkdir -p "${TARGET_WORKDIR}"
