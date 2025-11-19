@@ -1,8 +1,8 @@
 #!/bin/bash -l
-#SBATCH --time=04:00:00
-#SBATCH --job-name=edpose
-#SBATCH --gres=gpu:a100:4
-#SBATCH --array=2
+#SBATCH --time=00:30:00
+#SBATCH --job-name=testedpose
+#SBATCH --gres=gpu:a100:1
+#SBATCH --array=0-4
 #SBATCH --output=/home/atuin/b268dc/b268dc10/logs/ed-actionpose/reproduction/%x_%a_%j.txt
 #SBATCH --error=/home/atuin/b268dc/b268dc10/logs/ed-actionpose/reproduction/%x_%a_%j.txt
 
@@ -97,11 +97,14 @@ N_CLASSES=17
 # Create a run name with the combination of defined LR, weight_decay, num_group, etc.
 # export EDPOSE_COCO_PATH=${TARGET_DATA}/stratified_folds_unique_margin_8_n5/fold_${SLURM_ARRAY_TASK_ID}
 
+MODELS_PATH=$WORK/work_dirs/ed_actionpose/edpose/${SLURM_ARRAY_TASK_ID}/work_dir/output/checkpoint_best_regular.pth
+
 CURRENT_PORT=$((44144+${SLURM_ARRAY_TASK_ID}))
 
-torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.py \
+torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT test.py \
         --config_file config/edpose.cfg.py \
-        --pretrain_model_path /home/atuin/b268dc/b268dc10/models/EDPose-R50.pth \
+        --eval \
+        --pretrain_model_path $MODELS_PATH \
         --output_dir ${WORK_DIR}/output/ \
         --options modelname=edpose \
             num_classes=$N_CLASSES batch_size=$BS epochs=$epoch lr_drop=$LR_DROP \
@@ -114,7 +117,7 @@ torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT main.p
         --fix_size \
         --find_unused_params 
 
-TARGET_WORKDIR="$WORK/work_dirs/ed_actionpose/edpose/${SLURM_ARRAY_TASK_ID}_${SLURM_JOB_ID}"
+TARGET_WORKDIR="$WORK/work_dirs/ed_actionpose/edpose/test/${SLURM_ARRAY_TASK_ID}_${SLURM_JOB_ID}"
 echo "Training finished, start copying results to ${TARGET_WORKDIR}"
 
 # COPY ANNOTATIONS FILES TO MAP CROSSVAL SPLIT
