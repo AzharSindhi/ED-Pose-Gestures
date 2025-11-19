@@ -99,14 +99,14 @@ N_CLASSES=17
 
 CURRENT_PORT=$((44144+${SLURM_ARRAY_TASK_ID}))
 
-MODELS_PATH=$WORK/work_dirs/ed_actionpose/edpose/${SLURM_ARRAY_TASK_ID}/work_dir/output/checkpoint_best_regular.pth
+MODELS_PATH=$WORK/work_dirs/ed_actionpose/tokenonly/${SLURM_ARRAY_TASK_ID}/work_dir/output/checkpoint_best_regular.pth
 
 torchrun --nproc_per_node=$SLURM_GPUS_ON_NODE --master_port=$CURRENT_PORT test.py \
         --eval \
         --seperate_token_for_class \
         --classifier_type full \
         --config_file config/edpose.cfg.py \
-        --edpose_model_path $MODELS_PATH \
+        --pretrain_model_path $MODELS_PATH \
         --edpose_finetune_ignore class_embed. \
         --output_dir ${WORK_DIR}/output/ \
         --dataset_file=coco \
