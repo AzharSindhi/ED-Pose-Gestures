@@ -400,7 +400,7 @@ class EdPoseClassifier(nn.Module):
     # logger.info(str(_load_output))
 
 
-@MODULE_BUILD_FUNCS.registe_with_name(module_name='classifier')
+@MODULE_BUILD_FUNCS.registe_with_name(module_name='classifier_old')
 def build_classifier(args):
     
     edpose_model, criterion, postprocessors = build_edpose(args)
